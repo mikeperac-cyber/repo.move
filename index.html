@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
   <header class="topbar">
@@ -17,25 +17,27 @@
       <div class="logo" aria-hidden="true">◈</div>
       <div>
         <h1>RepoMover</h1>
-        <p>GitHub repos movement organizer</p>
+        <p>GitHub repos movement organizer <span class="kbd-hint">· press <kbd>/</kbd> to search · <kbd>N</kbd> new</span></p>
       </div>
     </div>
     <div class="topbar-actions">
-      <button id="exportBtn" class="btn btn-ghost" title="Export JSON">Export</button>
-      <label class="btn btn-ghost" for="importFile" style="cursor:pointer">Import</label>
+      <button id="exportBtn" class="btn btn-ghost" title="Export JSON (E)">Export</button>
+      <label class="btn btn-ghost" for="importFile" style="cursor:pointer" title="Import JSON">Import</label>
       <input id="importFile" type="file" accept=".json" hidden />
-      <button id="addBtn" class="btn btn-primary">+ Add repo</button>
+      <button id="addBtn" class="btn btn-primary">+ New movement</button>
     </div>
   </header>
 
-  <section class="stats" id="statsBar" aria-live="polite">
-    <!-- injected -->
-  </section>
+  <section class="stats" id="statsBar" aria-live="polite"></section>
+
+  <!-- progress bar -->
+  <div class="progress-wrap" aria-hidden="true"><div id="progressBar" class="progress-bar"></div></div>
 
   <section class="controls">
     <div class="search-wrap">
       <span class="search-icon" aria-hidden="true">⌕</span>
-      <input id="searchInput" type="search" placeholder="Search by name, place or link…" autocomplete="off" aria-label="Search repos" />
+      <input id="searchInput" type="search" placeholder="Search name, place, link or notes…" autocomplete="off" aria-label="Search repos" />
+      <span class="search-shortcut">/</span>
     </div>
     <div class="filters">
       <select id="statusFilter" aria-label="Filter by status">
@@ -50,12 +52,20 @@
         <option value="status">Group by: Status</option>
         <option value="initialPlace">Group by: Initial place</option>
       </select>
+      <select id="sortBy" aria-label="Sort by">
+        <option value="updated">Sort: Recently updated</option>
+        <option value="name">Sort: Name A→Z</option>
+        <option value="target">Sort: Target place</option>
+        <option value="status">Sort: Status</option>
+      </select>
       <div class="view-toggle" role="tablist" aria-label="View mode">
-        <button id="boardViewBtn" class="toggle-btn active" role="tab" aria-selected="true">Board</button>
-        <button id="tableViewBtn" class="toggle-btn" role="tab" aria-selected="false">Table</button>
+        <button id="boardViewBtn" class="toggle-btn active" role="tab" aria-selected="true" title="Board view (B)">Board</button>
+        <button id="tableViewBtn" class="toggle-btn" role="tab" aria-selected="false" title="Table view (T)">Table</button>
       </div>
     </div>
   </section>
+
+  <div id="chipsBar" class="chips-bar"></div>
 
   <main id="mainView">
     <div id="boardView" class="board" aria-live="polite"></div>
@@ -63,7 +73,7 @@
       <table>
         <thead>
           <tr>
-            <th>Name</th>
+            <th data-sort="name" class="sortable">Name ↕</th>
             <th>Initial place</th>
             <th>Target place</th>
             <th>Links</th>
@@ -77,23 +87,34 @@
     <div id="emptyState" class="empty hidden">
       <div class="empty-icon" aria-hidden="true">📦</div>
       <h3>No repos yet</h3>
-      <p>Add your first repo movement to start organizing.</p>
-      <button id="emptyAddBtn" class="btn btn-primary">Add repo</button>
+      <p>Add your first repo movement to start organizing. Track initial place, GitHub link and where it should land.</p>
+      <button id="emptyAddBtn" class="btn btn-primary">Add movement</button>
+      <div class="empty-tips">
+        <span>Tips:</span> Drag cards between columns to move status · Press <kbd>N</kbd> for new · <kbd>/</kbd> to search
+      </div>
     </div>
   </main>
 
-  <!-- Modal -->
+  <footer class="foot">
+    <span class="mono" id="footCount"></span>
+    <span class="foot-sep">·</span>
+    <span>Drag cards to move · Click card for details · <kbd>?</kbd> help</span>
+  </footer>
+
+  <!-- Edit dialog -->
   <dialog id="repoDialog" aria-labelledby="dialogTitle">
     <form id="repoForm" method="dialog" novalidate>
       <div class="dialog-head">
-        <h2 id="dialogTitle">Add repo movement</h2>
+        <div>
+          <h2 id="dialogTitle">Add repo movement</h2>
+          <p class="dialog-sub">All fields with * are required</p>
+        </div>
         <button type="button" class="icon-btn" id="closeDialog" aria-label="Close">✕</button>
       </div>
-
       <div class="form-grid">
         <label>
           <span>Repo name <em>*</em></span>
-          <input id="fName" name="name" required placeholder="e.g. my-awesome-api" autocomplete="off" maxlength="80" />
+          <input id="fName" name="name" required placeholder="e.g. payment-service" autocomplete="off" maxlength="80" list="nameList" />
         </label>
         <label>
           <span>Status</span>
@@ -106,31 +127,50 @@
         </label>
         <label>
           <span>Initial place <em>*</em></span>
-          <input id="fInitial" name="initialPlace" required placeholder="e.g. github.com/old-org or ~/legacy" maxlength="120" />
+          <input id="fInitial" name="initialPlace" required placeholder="e.g. github.com/old-org" maxlength="120" list="placesList" />
         </label>
         <label>
           <span>Target place <em>*</em></span>
-          <input id="fTarget" name="targetPlace" required placeholder="e.g. github.com/new-org / Archived / Monorepo" maxlength="120" />
+          <input id="fTarget" name="targetPlace" required placeholder="e.g. github.com/new-org/platform" maxlength="120" list="placesList" />
         </label>
         <label class="span-2">
-          <span>GitHub link <em>*</em></span>
+          <span>GitHub link <em>*</em> <small class="field-hint" id="linkHint"></small></span>
           <input id="fLink" name="githubUrl" type="url" required placeholder="https://github.com/org/repo" inputmode="url" />
         </label>
         <label class="span-2">
-          <span>Extra links (one per line)</span>
+          <span>Extra links <small>(one per line)</small></span>
           <textarea id="fExtra" name="extraLinks" rows="2" placeholder="https://docs.example.com&#10;https://jira.example.com/PROJ-123"></textarea>
         </label>
         <label class="span-2">
-          <span>Notes</span>
-          <textarea id="fNotes" name="notes" rows="2" placeholder="Migration notes, checklist, owners…" maxlength="600"></textarea>
+          <span>Notes <small id="notesCount">0/600</small></span>
+          <textarea id="fNotes" name="notes" rows="3" placeholder="Migration checklist, owners, risks…" maxlength="600"></textarea>
         </label>
       </div>
-
+      <datalist id="placesList"></datalist>
+      <datalist id="nameList"></datalist>
       <div class="dialog-actions">
         <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
         <button type="submit" class="btn btn-primary" id="saveBtn">Save movement</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- Detail drawer -->
+  <dialog id="detailDrawer" class="drawer" aria-labelledby="detailTitle">
+    <div class="drawer-head">
+      <div class="drawer-titles">
+        <div class="drawer-badge" id="detailBadge"></div>
+        <h2 id="detailTitle"></h2>
+        <p id="detailSub" class="mono"></p>
+      </div>
+      <button class="icon-btn" id="closeDetail" aria-label="Close">✕</button>
+    </div>
+    <div class="drawer-body" id="detailBody"></div>
+    <div class="drawer-actions">
+      <button id="detailEditBtn" class="btn btn-ghost">Edit</button>
+      <button id="detailDeleteBtn" class="btn btn-ghost" style="color:var(--red);border-color:rgba(239,68,68,.3)">Delete</button>
+      <a id="detailOpenBtn" class="btn btn-primary" target="_blank" rel="noopener noreferrer">Open GitHub ↗</a>
+    </div>
   </dialog>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
