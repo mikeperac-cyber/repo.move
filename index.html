@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RepoMover — GitHub Movement Organizer</title>
+  <meta name="description" content="Organize your GitHub repos movement: track initial place, name, links and target place." />
+  <meta name="color-scheme" content="dark">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">◈</div>
+      <div>
+        <h1>RepoMover</h1>
+        <p>GitHub repos movement organizer</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button id="exportBtn" class="btn btn-ghost" title="Export JSON">Export</button>
+      <label class="btn btn-ghost" for="importFile" style="cursor:pointer">Import</label>
+      <input id="importFile" type="file" accept=".json" hidden />
+      <button id="addBtn" class="btn btn-primary">+ Add repo</button>
+    </div>
+  </header>
+
+  <section class="stats" id="statsBar" aria-live="polite">
+    <!-- injected -->
+  </section>
+
+  <section class="controls">
+    <div class="search-wrap">
+      <span class="search-icon" aria-hidden="true">⌕</span>
+      <input id="searchInput" type="search" placeholder="Search by name, place or link…" autocomplete="off" aria-label="Search repos" />
+    </div>
+    <div class="filters">
+      <select id="statusFilter" aria-label="Filter by status">
+        <option value="all">All status</option>
+        <option value="planned">Planned</option>
+        <option value="in_progress">In progress</option>
+        <option value="done">Done</option>
+        <option value="blocked">Blocked</option>
+      </select>
+      <select id="groupBy" aria-label="Group by">
+        <option value="targetPlace">Group by: Target place</option>
+        <option value="status">Group by: Status</option>
+        <option value="initialPlace">Group by: Initial place</option>
+      </select>
+      <div class="view-toggle" role="tablist" aria-label="View mode">
+        <button id="boardViewBtn" class="toggle-btn active" role="tab" aria-selected="true">Board</button>
+        <button id="tableViewBtn" class="toggle-btn" role="tab" aria-selected="false">Table</button>
+      </div>
+    </div>
+  </section>
+
+  <main id="mainView">
+    <div id="boardView" class="board" aria-live="polite"></div>
+    <div id="tableView" class="table-wrap hidden">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Initial place</th>
+            <th>Target place</th>
+            <th>Links</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyState" class="empty hidden">
+      <div class="empty-icon" aria-hidden="true">📦</div>
+      <h3>No repos yet</h3>
+      <p>Add your first repo movement to start organizing.</p>
+      <button id="emptyAddBtn" class="btn btn-primary">Add repo</button>
+    </div>
+  </main>
+
+  <!-- Modal -->
+  <dialog id="repoDialog" aria-labelledby="dialogTitle">
+    <form id="repoForm" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h2 id="dialogTitle">Add repo movement</h2>
+        <button type="button" class="icon-btn" id="closeDialog" aria-label="Close">✕</button>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          <span>Repo name <em>*</em></span>
+          <input id="fName" name="name" required placeholder="e.g. my-awesome-api" autocomplete="off" maxlength="80" />
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="fStatus" name="status">
+            <option value="planned">Planned</option>
+            <option value="in_progress">In progress</option>
+            <option value="done">Done</option>
+            <option value="blocked">Blocked</option>
+          </select>
+        </label>
+        <label>
+          <span>Initial place <em>*</em></span>
+          <input id="fInitial" name="initialPlace" required placeholder="e.g. github.com/old-org or ~/legacy" maxlength="120" />
+        </label>
+        <label>
+          <span>Target place <em>*</em></span>
+          <input id="fTarget" name="targetPlace" required placeholder="e.g. github.com/new-org / Archived / Monorepo" maxlength="120" />
+        </label>
+        <label class="span-2">
+          <span>GitHub link <em>*</em></span>
+          <input id="fLink" name="githubUrl" type="url" required placeholder="https://github.com/org/repo" inputmode="url" />
+        </label>
+        <label class="span-2">
+          <span>Extra links (one per line)</span>
+          <textarea id="fExtra" name="extraLinks" rows="2" placeholder="https://docs.example.com&#10;https://jira.example.com/PROJ-123"></textarea>
+        </label>
+        <label class="span-2">
+          <span>Notes</span>
+          <textarea id="fNotes" name="notes" rows="2" placeholder="Migration notes, checklist, owners…" maxlength="600"></textarea>
+        </label>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="saveBtn">Save movement</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
