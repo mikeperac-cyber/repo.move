@@ -23,6 +23,9 @@ const els = {
   fInitial: document.getElementById('fInitial'),
   fTarget: document.getElementById('fTarget'),
   fLink: document.getElementById('fLink'),
+  fDue: document.getElementById('fDue'),
+  fNotes: document.getElementById('fNotes'),
+  dateLine: document.getElementById('dateLine'),
 };
 
 let moves = load();
@@ -68,10 +71,15 @@ function load(){
     if(raw){ const p = JSON.parse(raw); if(Array.isArray(p) && p.length) return p; }
   }catch(e){ console.warn(e); }
   return [
-    { id:uid(), name:'payment-service', initialPlace:'github.com/old-org', targetPlace:'github.com/new-org/platform', githubUrl:'https://github.com/old-org/payment-service', status:'planned' },
-    { id:uid(), name:'web-dashboard', initialPlace:'github.com/old-org', targetPlace:'Archived', githubUrl:'https://github.com/old-org/web-dashboard', status:'in_progress' },
-    { id:uid(), name:'auth-lib', initialPlace:'github.com/old-org/libs', targetPlace:'github.com/new-org/shared', githubUrl:'https://github.com/old-org/auth-lib', status:'done' },
+    { id:uid(), name:'payment-service', initialPlace:'github.com/old-org', targetPlace:'github.com/new-org/platform', githubUrl:'https://github.com/old-org/payment-service', status:'planned', due:todayISO(), notes:'Owner: platform team. Re-routes in gateway.' },
+    { id:uid(), name:'web-dashboard', initialPlace:'github.com/old-org', targetPlace:'Archived', githubUrl:'https://github.com/old-org/web-dashboard', status:'in_progress', due:'', notes:'' },
+    { id:uid(), name:'auth-lib', initialPlace:'github.com/old-org/libs', targetPlace:'github.com/new-org/shared', githubUrl:'https://github.com/old-org/auth-lib', status:'done', due:'', notes:'Blocked on token rotation.' },
   ];
+}
+function todayISO(){
+  const d = new Date();
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
 function save(){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(moves)); return true; }
@@ -83,9 +91,27 @@ function persistAndRender(){ save(); render(); }
 function filtered(){
   const q = els.search.value.trim().toLowerCase();
   if(!q) return moves;
-  return moves.filter(m => [m.name, m.initialPlace, m.targetPlace, m.githubUrl].join(' ').toLowerCase().includes(q));
+  return moves.filter(m => [m.name, m.initialPlace, m.targetPlace, m.githubUrl, m.notes].join(' ').toLowerCase().includes(q));
 }
 const STATUS_ORDER = { planned:0, in_progress:1, blocked:2, done:3 };
+
+// ---------- due date helpers ----------
+function fmtDate(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  const date = new Date(y, m-1, d);
+  return date.toLocaleDateString(undefined, {month:'short', day:'numeric', year: date.getFullYear()!==new Date().getFullYear() ? 'numeric' : undefined});
+}
+function dueClass(iso){
+  if(!iso) return '';
+  return iso < todayISO() ? 'overdue' : 'soon';
+}
+function dueHtml(m){
+  if(!m.due) return '';
+  const label = fmtDate(m.due);
+  const overdue = m.due < todayISO() && m.status !== 'done';
+  return `<span class="due ${overdue?'overdue':'soon'}">${overdue?'⚠ ':''}${label}</span>`;
+}
 
 // ---------- list view (to-do) ----------
 function listItemHtml(m){
@@ -107,8 +133,10 @@ function listItemHtml(m){
           <span class="place">${escapeHtml(m.initialPlace)}</span>
           <span class="arrow">→</span>
           <span class="place target">${escapeHtml(m.targetPlace)}</span>
+          ${dueHtml(m)}
           ${m.status==='blocked'? `<span class="blocked-tag">blocked</span>`:''}
         </div>
+        ${m.notes? `<div class="todo-notes">${escapeHtml(m.notes)}</div>`:''}
       </div>
       ${link}
       <button class="del-btn" data-action="delete" data-id="${m.id}" title="Delete" onclick="event.stopPropagation()">✕</button>
@@ -142,6 +170,8 @@ function renderBoard(){
             <div class="card" draggable="true" data-id="${m.id}" role="button" tabindex="0" aria-label="Edit ${escapeAttr(m.name)}">
               <div class="card-title">${escapeHtml(m.name)}</div>
               <div class="card-route mono">${escapeHtml(m.initialPlace)} → ${escapeHtml(m.targetPlace)}</div>
+              ${dueHtml(m)}
+              ${m.notes? `<div class="card-note">${escapeHtml(m.notes)}</div>`:''}
               ${m.githubUrl? `<a class="card-link" href="${escapeAttr(m.githubUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">↗ ${escapeHtml(hostFromUrl(m.githubUrl))}</a>`:''}
               <div class="card-actions">
                 <button data-action="edit" data-id="${m.id}" onclick="event.stopPropagation()">Edit</button>
@@ -240,6 +270,7 @@ function openDialog(mode, id){
     const m=moves.find(x=>x.id===id); if(!m) return;
     els.dialogTitle.textContent = 'Edit repo';
     els.fName.value=m.name; els.fInitial.value=m.initialPlace; els.fTarget.value=m.targetPlace; els.fLink.value=m.githubUrl||'';
+    els.fDue.value=m.due||''; els.fNotes.value=m.notes||'';
     const radio=els.form.querySelector(`input[name="fStatus"][value="${m.status}"]`); if(radio) radio.checked=true;
   } else {
     els.dialogTitle.textContent = 'Add repo';
@@ -272,10 +303,12 @@ els.form.addEventListener('submit', e=>{
   const initial=els.fInitial.value.trim();
   const target=els.fTarget.value.trim();
   const link=els.fLink.value.trim();
+  const due=els.fDue.value;
+  const notes=els.fNotes.value.trim();
   if(!name || !initial || !target){ toast('Fill required fields'); return; }
   if(link){ try{ new URL(link); }catch{ toast('Invalid link'); return; } }
   const status = (els.form.querySelector('input[name="fStatus"]:checked')||{}).value || 'planned';
-  const data={ name, initialPlace:initial, targetPlace:target, githubUrl:link, status };
+  const data={ name, initialPlace:initial, targetPlace:target, githubUrl:link, status, due, notes };
   if(editingId){
     const idx=moves.findIndex(m=>m.id===editingId);
     if(idx!==-1) moves[idx]={...moves[idx], ...data, done:status==='done'};
@@ -294,4 +327,5 @@ els.boardViewBtn.addEventListener('click', ()=>{ viewMode='board'; localStorage.
 
 // ---------- init ----------
 applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+els.dateLine.textContent = new Date().toLocaleDateString(undefined, {weekday:'short', month:'long', day:'numeric'});
 render();
