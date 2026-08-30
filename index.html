@@ -34,13 +34,15 @@
     <div class="list-head">
       <div class="search-wrap">
         <span class="search-icon" aria-hidden="true">⌕</span>
-        <input id="searchInput" type="search" placeholder="Search..." aria-label="Search" autocomplete="off" />
+        <input id="searchInput" type="search" placeholder="Search name, path, notes, tags…" aria-label="Search" autocomplete="off" />
       </div>
       <div class="view-toggle" role="tablist" aria-label="View">
         <button id="listViewBtn" class="toggle active" role="tab" aria-selected="true">List</button>
         <button id="boardViewBtn" class="toggle" role="tab" aria-selected="false">Board</button>
       </div>
     </div>
+
+    <div id="tagBar" class="tag-filter"></div>
 
     <main id="mainView">
       <div id="listView" class="list">
@@ -85,6 +87,10 @@
         <label>
           <span>Due date</span>
           <input id="fDue" type="date" />
+        </label>
+        <label>
+          <span>Tags</span>
+          <input id="fTags" placeholder="e.g. backend, high-priority" maxlength="120" />
         </label>
         <label class="span-2">
           <span>Notes</span>

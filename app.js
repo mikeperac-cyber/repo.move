@@ -25,6 +25,8 @@ const els = {
   fLink: document.getElementById('fLink'),
   fDue: document.getElementById('fDue'),
   fNotes: document.getElementById('fNotes'),
+  fTags: document.getElementById('fTags'),
+  tagBar: document.getElementById('tagBar'),
   dateLine: document.getElementById('dateLine'),
 };
 
@@ -71,9 +73,9 @@ function load(){
     if(raw){ const p = JSON.parse(raw); if(Array.isArray(p) && p.length) return p; }
   }catch(e){ console.warn(e); }
   return [
-    { id:uid(), name:'payment-service', initialPlace:'github.com/old-org', targetPlace:'github.com/new-org/platform', githubUrl:'https://github.com/old-org/payment-service', status:'planned', due:todayISO(), notes:'Owner: platform team. Re-routes in gateway.' },
-    { id:uid(), name:'web-dashboard', initialPlace:'github.com/old-org', targetPlace:'Archived', githubUrl:'https://github.com/old-org/web-dashboard', status:'in_progress', due:'', notes:'' },
-    { id:uid(), name:'auth-lib', initialPlace:'github.com/old-org/libs', targetPlace:'github.com/new-org/shared', githubUrl:'https://github.com/old-org/auth-lib', status:'done', due:'', notes:'Blocked on token rotation.' },
+    { id:uid(), name:'payment-service', initialPlace:'github.com/old-org', targetPlace:'github.com/new-org/platform', githubUrl:'https://github.com/old-org/payment-service', status:'planned', due:todayISO(), notes:'Owner: platform team. Re-routes in gateway.', tags:['backend','high-priority'] },
+    { id:uid(), name:'web-dashboard', initialPlace:'github.com/old-org', targetPlace:'Archived', githubUrl:'https://github.com/old-org/web-dashboard', status:'in_progress', due:'', notes:'', tags:['frontend'] },
+    { id:uid(), name:'auth-lib', initialPlace:'github.com/old-org/libs', targetPlace:'github.com/new-org/shared', githubUrl:'https://github.com/old-org/auth-lib', status:'done', due:'', notes:'Blocked on token rotation.', tags:['security'] },
   ];
 }
 function todayISO(){
@@ -90,8 +92,12 @@ function persistAndRender(){ save(); render(); }
 // ---------- data ----------
 function filtered(){
   const q = els.search.value.trim().toLowerCase();
-  if(!q) return moves;
-  return moves.filter(m => [m.name, m.initialPlace, m.targetPlace, m.githubUrl, m.notes].join(' ').toLowerCase().includes(q));
+  return moves.filter(m=>{
+    if(activeTag && !(m.tags||[]).includes(activeTag)) return false;
+    if(!q) return true;
+    return [m.name, m.initialPlace, m.targetPlace, m.githubUrl, m.notes, (m.tags||[]).join(' ')]
+      .join(' ').toLowerCase().includes(q);
+  });
 }
 const STATUS_ORDER = { planned:0, in_progress:1, blocked:2, done:3 };
 
@@ -111,6 +117,33 @@ function dueHtml(m){
   const label = fmtDate(m.due);
   const overdue = m.due < todayISO() && m.status !== 'done';
   return `<span class="due ${overdue?'overdue':'soon'}">${overdue?'⚠ ':''}${label}</span>`;
+}
+
+// ---------- tags ----------
+const TAG_COLORS = ['#7c6cff','#22c55e','#38bdf8','#fb923c','#ff4d6a','#f59e0b','#8b5cf6','#14b8a6','#ef4444','#64748b'];
+function tagColor(tag){
+  let h=0; for(const c of tag){ h=(h*31+c.charCodeAt(0))>>>0; }
+  return TAG_COLORS[h % TAG_COLORS.length];
+}
+function normalizeTags(list){
+  const raw = Array.isArray(list) ? list : [];
+  return [...new Set(raw.map(t=>String(t).trim().toLowerCase()).filter(Boolean))];
+}
+function allTags(){
+  const set = new Set();
+  for(const m of moves){ for(const t of (m.tags||[])) set.add(t); }
+  return [...set].sort();
+}
+let activeTag = null;
+function tagChipsHtml(tags){
+  return (tags||[]).map(t=> `<span class="tag" style="--tag:${tagColor(t)}" data-tag="${escapeAttr(t)}">#${escapeHtml(t)}</span>`).join('');
+}
+function tagFilterBarHtml(){
+  const tags = allTags();
+  if(!tags.length) return '';
+  return `<div class="tag-filter">${tags.map(t=>`
+    <button class="tag-filter-chip${activeTag===t?' active':''}" data-tagfilter="${escapeAttr(t)}">#${escapeHtml(t)}</button>
+  `).join('')}</div>`;
 }
 
 // ---------- list view (to-do) ----------
@@ -136,6 +169,7 @@ function listItemHtml(m){
           ${dueHtml(m)}
           ${m.status==='blocked'? `<span class="blocked-tag">blocked</span>`:''}
         </div>
+        <div class="todo-tags">${tagChipsHtml(m.tags)}</div>
         ${m.notes? `<div class="todo-notes">${escapeHtml(m.notes)}</div>`:''}
       </div>
       ${link}
@@ -171,6 +205,7 @@ function renderBoard(){
               <div class="card-title">${escapeHtml(m.name)}</div>
               <div class="card-route mono">${escapeHtml(m.initialPlace)} → ${escapeHtml(m.targetPlace)}</div>
               ${dueHtml(m)}
+              <div class="todo-tags">${tagChipsHtml(m.tags)}</div>
               ${m.notes? `<div class="card-note">${escapeHtml(m.notes)}</div>`:''}
               ${m.githubUrl? `<a class="card-link" href="${escapeAttr(m.githubUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">↗ ${escapeHtml(hostFromUrl(m.githubUrl))}</a>`:''}
               <div class="card-actions">
@@ -195,6 +230,7 @@ function render(){
 
   els.summaryText.textContent = `${done}/${total} done${shown!==total?` · ${shown} shown`:''}`;
   els.progressBar.style.width = pct + '%';
+  els.tagBar.innerHTML = tagFilterBarHtml();
 
   const isEmpty = moves.length===0;
   const filteredEmpty = !isEmpty && items.length===0;
@@ -257,10 +293,28 @@ document.addEventListener('click', e=>{
 
 // card / row click opens edit (ignore interactive children)
 document.addEventListener('click', e=>{
-  if(e.target.closest('button, a, input, label')) return;
+  if(e.target.closest('button, a, input, label, .tag')) return;
   const el=e.target.closest('[data-id]'); if(!el) return;
   const m=moves.find(x=>x.id===el.dataset.id);
   if(m && el.dataset.action===undefined) openDialog('edit', m.id);
+});
+
+// tag filtering: click a tag chip on a row/card or in the filter bar
+document.addEventListener('click', e=>{
+  const filterBtn = e.target.closest('[data-tagfilter]');
+  if(filterBtn){
+    const t = filterBtn.dataset.tagfilter;
+    activeTag = activeTag === t ? null : t;
+    render();
+    return;
+  }
+  const chip = e.target.closest('.tag[data-tag]');
+  if(chip){
+    const t = chip.dataset.tag;
+    activeTag = activeTag === t ? null : t;
+    if(activeTag) els.search.value = '';
+    render();
+  }
 });
 
 // ---------- dialog ----------
@@ -270,7 +324,7 @@ function openDialog(mode, id){
     const m=moves.find(x=>x.id===id); if(!m) return;
     els.dialogTitle.textContent = 'Edit repo';
     els.fName.value=m.name; els.fInitial.value=m.initialPlace; els.fTarget.value=m.targetPlace; els.fLink.value=m.githubUrl||'';
-    els.fDue.value=m.due||''; els.fNotes.value=m.notes||'';
+    els.fDue.value=m.due||''; els.fNotes.value=m.notes||''; els.fTags.value=(m.tags||[]).join(', ');
     const radio=els.form.querySelector(`input[name="fStatus"][value="${m.status}"]`); if(radio) radio.checked=true;
   } else {
     els.dialogTitle.textContent = 'Add repo';
@@ -305,10 +359,11 @@ els.form.addEventListener('submit', e=>{
   const link=els.fLink.value.trim();
   const due=els.fDue.value;
   const notes=els.fNotes.value.trim();
+  const tags=normalizeTags(els.fTags.value.split(','));
   if(!name || !initial || !target){ toast('Fill required fields'); return; }
   if(link){ try{ new URL(link); }catch{ toast('Invalid link'); return; } }
   const status = (els.form.querySelector('input[name="fStatus"]:checked')||{}).value || 'planned';
-  const data={ name, initialPlace:initial, targetPlace:target, githubUrl:link, status, due, notes };
+  const data={ name, initialPlace:initial, targetPlace:target, githubUrl:link, status, due, notes, tags };
   if(editingId){
     const idx=moves.findIndex(m=>m.id===editingId);
     if(idx!==-1) moves[idx]={...moves[idx], ...data, done:status==='done'};
