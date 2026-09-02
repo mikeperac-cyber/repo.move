@@ -1,11 +1,10 @@
-const STORAGE_KEY = 'repoMover:moves-v2';
+const STORAGE_KEY = 'repoMover:moves-v3';
 const THEME_KEY = 'repoMover:theme';
 
 const els = {
   themeToggle: document.getElementById('themeToggle'),
   addBtn: document.getElementById('addBtn'),
   emptyAddBtn: document.getElementById('emptyAddBtn'),
-  seedBtn: document.getElementById('seedBtn'),
   search: document.getElementById('searchInput'),
   clearSearch: document.getElementById('clearSearch'),
   sortSelect: document.getElementById('sortSelect'),
@@ -148,9 +147,9 @@ els.fTarget.addEventListener('input', ()=> updatePreview(els.fTarget, els.previe
 function load(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){ const p = JSON.parse(raw); if(Array.isArray(p) && p.length) return p.map(migrate); }
+    if(raw){ const p = JSON.parse(raw); if(Array.isArray(p)) return p.map(migrate); }
   }catch(e){ console.warn(e); }
-  return seedData();
+  return [];
 }
 function migrate(m){
   // ensure fields & normalize slugs (strip github.com prefix if old data)
@@ -164,14 +163,6 @@ function migrate(m){
 function normalizeSlug(s){
   const p = parseRepo(s);
   return p ? p.slug : String(s||'').trim();
-}
-function seedData(){
-  return [
-    { id:uid(), name:'payment-service', initialPlace:'old-org/payment-service', targetPlace:'new-org/platform', githubUrl:'https://github.com/old-org/payment-service', status:'planned', due:todayISO(), notes:'Owner: platform team. Update gateway routes after move.', tags:['backend','high-priority'], updatedAt: Date.now()-100000 },
-    { id:uid(), name:'web-dashboard', initialPlace:'old-org/web-dashboard', targetPlace:'new-org/web-dashboard', githubUrl:'', status:'in_progress', due:'', notes:'Frontend — verify Vercel env vars on target.', tags:['frontend'], updatedAt: Date.now()-50000 },
-    { id:uid(), name:'auth-lib', initialPlace:'old-org/auth-lib', targetPlace:'new-org/shared', githubUrl:'https://github.com/old-org/auth-lib', status:'done', due:'', notes:'Token rotation done.', tags:['security'], updatedAt: Date.now()-20000 },
-    { id:uid(), name:'data-pipeline', initialPlace:'acme-corp/data-pipeline', targetPlace:'acme-platform/data-pipeline', githubUrl:'', status:'blocked', due:todayISO(), notes:'Blocked: need admin on target org.', tags:['data','blocked'], updatedAt: Date.now()-80000 },
-  ];
 }
 function todayISO(){
   const d = new Date();
@@ -363,9 +354,9 @@ function render(){
   const isEmpty = moves.length===0;
   const filteredEmpty = !isEmpty && items.length===0;
   els.empty.classList.toggle('hidden', !isEmpty && !filteredEmpty);
-  if(isEmpty){ els.empty.querySelector('h3').textContent='Nothing here yet'; els.empty.querySelector('p').innerHTML='Add your first move — link <code>old-account/repo</code> → <code>new-account/repo</code>.'; els.emptyAddBtn.style.display=''; if(els.seedBtn) els.seedBtn.style.display=''; }
-  else if(filteredEmpty){ els.empty.querySelector('h3').textContent='No matches'; els.empty.querySelector('p').textContent='Try a different search or clear filters.'; els.emptyAddBtn.style.display='none'; if(els.seedBtn) els.seedBtn.style.display='none'; }
-  else els.emptyAddBtn.style.display='';
+  if(isEmpty){ els.empty.querySelector('h3').textContent='Nothing here yet'; els.empty.querySelector('p').innerHTML='Add your first move — link <code>old-account/repo</code> → <code>new-account/repo</code>.'; els.emptyAddBtn.style.display=''; }
+  else if(filteredEmpty){ els.empty.querySelector('h3').textContent='No matches'; els.empty.querySelector('p').textContent='Try a different search or clear filters.'; els.emptyAddBtn.style.display='none'; }
+  else els.emptyAddBtn.style.display='none';
 
   const isList = viewMode==='list';
   els.listView.classList.toggle('hidden', !isList);
@@ -486,7 +477,6 @@ function closeDialog(){ if(els.dialog.open) els.dialog.close(); editingId=null; 
 
 els.addBtn.addEventListener('click', ()=>openDialog('add'));
 els.emptyAddBtn.addEventListener('click', ()=>openDialog('add'));
-if(els.seedBtn) els.seedBtn.addEventListener('click', ()=>{ moves=seedData(); persistAndRender(); toast('Demo data loaded'); });
 els.closeDialog.addEventListener('click', closeDialog);
 els.cancelBtn.addEventListener('click', closeDialog);
 els.dialog.addEventListener('click', e=>{

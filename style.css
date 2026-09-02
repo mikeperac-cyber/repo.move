@@ -306,17 +306,106 @@ textarea{resize:vertical;min-height:56px}
 .foot a{color:var(--muted);text-decoration:none}
 .foot a:hover{color:var(--accent)}
 
+/* ===== responsive polish ===== */
 @media(prefers-reduced-motion:reduce){*{transition:none !important}}
-@media(max-width:860px){
-  .hero{grid-template-columns:1fr}
+
+/* tablet */
+@media(max-width:980px){
+  .app{padding:0 14px 20px}
+  .hero{grid-template-columns:1fr;gap:14px;padding:16px}
   .stats{justify-content:flex-start}
-  .board{grid-template-columns:1fr 1fr}
+  .board{grid-template-columns:repeat(2,1fr)}
+  .topbar{padding:12px 0}
 }
-@media(max-width:560px){
-  .form-grid{grid-template-columns:1fr}
-  .todo-route .repo-pill{max-width:140px}
+
+/* large mobile */
+@media(max-width:720px){
+  .app{padding:0 12px 18px}
+  .bg-orb{opacity:.28;filter:blur(48px)}
+  .orb-1{width:360px;height:360px;left:-100px;top:-80px}
+  .orb-2{width:420px;height:420px;right:-120px;top:80px}
+  .topbar{gap:10px;padding:10px 0 12px}
+  .brand h1{font-size:17px}
+  .subtitle{font-size:11px}
+  .brand-badge{display:none}
+  .topbar-actions{gap:6px;width:100%;justify-content:space-between}
+  .topbar-actions .btn-ghost.sm{flex:1;justify-content:center;padding:8px 10px}
+  .icon-btn{width:36px;height:36px}
+  .btn-primary{padding:9px 14px;font-size:13px;flex:1;justify-content:center}
+  .hero{padding:14px;border-radius:16px}
+  .hero-copy h2{font-size:clamp(18px,5vw,20px);max-width:none}
+  .hero-copy p{font-size:12.5px}
+  .stats{gap:7px}
+  .stat{flex:1;min-width:72px;padding:9px 10px}
+  .stat strong{font-size:18px}
+  .progress-ring{width:56px;height:56px}
+  .progress-ring svg{width:56px;height:56px}
+  .toolbar{gap:8px}
+  .search-wrap{min-width:0;flex:1 1 100%}
+  .toolbar-right{width:100%;justify-content:space-between}
+  .sort-select{flex:1;min-width:0}
+  .view-toggle{flex-shrink:0}
+  .todo-item{padding:11px 11px;gap:10px;align-items:flex-start}
+  .todo-body{min-width:0}
+  .todo-title{font-size:13.5px;gap:6px}
+  .todo-route{gap:6px}
+  .repo-pill{font-size:11px;padding:4px 9px;max-width:42vw}
+  .item-actions{flex-direction:row;gap:6px}
+  .item-link,.del-btn{width:32px;height:32px}
+  .board{grid-template-columns:1fr 1fr;gap:10px}
+  .col-head{padding:10px}
+  .col-body{padding:8px;gap:8px}
+  .card{padding:10px}
+  dialog{width:calc(100% - 16px);max-width:none;margin:auto;border-radius:16px;max-height:92dvh;overflow:auto}
+  .form-grid{grid-template-columns:1fr;gap:10px;padding:14px}
+  .dialog-head{padding:14px}
+  .dialog-actions{padding:12px 14px}
+}
+
+/* mobile */
+@media(max-width:520px){
+  .hero{padding:13px}
+  .stats{display:grid;grid-template-columns:1fr 1fr auto;align-items:center}
+  .progress-ring{grid-row:1 / span 2;align-self:stretch;height:auto;min-height:72px}
+  .todo-item{flex-wrap:wrap}
+  .checkbox{width:20px;height:20px}
+  .repo-icon{display:none}
+  .todo-title{font-size:13px}
+  .status-badge{font-size:9px;padding:2px 7px}
+  .repo-pill{max-width:100%;width:auto}
+  .todo-route .arrow{margin:0 1px}
+  .todo-notes{font-size:12px}
   .board{grid-template-columns:1fr}
-  .topbar{flex-wrap:wrap}
-  .hero-copy h2{font-size:19px}
-  .toolbar{flex-direction:column;align-items:stretch}
+  .board-col{min-height:0}
+  .col-body{min-height:84px}
+  .foot{flex-direction:column;align-items:flex-start;gap:6px;padding-top:14px}
+  .foot .foot-links{opacity:.9}
+  .toast{bottom:12px;padding:10px 14px;font-size:12.5px;left:12px;right:12px;transform:none;max-width:none}
+  .toast.hidden{transform:translateY(8px)}
 }
+
+/* tiny */
+@media(max-width:380px){
+  .topbar-actions{flex-wrap:wrap}
+  .btn-primary{width:100%}
+  .view-toggle{width:100%}
+  .view-toggle .toggle{flex:1;justify-content:center}
+  .sort-select{width:100%}
+  .toolbar-right{flex-direction:column;align-items:stretch}
+  .repo-pill{max-width:38vw;font-size:10.5px}
+  .status-filter{gap:5px}
+  .status-chip{font-size:10px;padding:5px 8px}
+  .tag-filter-chip{font-size:11px;padding:5px 10px}
+}
+
+/* board horizontal snap on narrow tablets: keep readable without crushing */
+@media(max-width:720px) and (min-width:521px){
+  .board{overflow-x:auto;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);grid-template-columns:none;padding-bottom:4px;scroll-snap-type:x proximity}
+  .board-col{scroll-snap-align:start}
+}
+
+/* ensure inputs never overflow viewport */
+input,select,textarea{max-width:100%}
+.todo-title,.card-title{overflow-wrap:anywhere}
+.repo-pill{overflow-wrap:anywhere}
+img,svg{max-width:100%}
