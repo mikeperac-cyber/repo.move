@@ -3,118 +3,185 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RepoMove — Repo Moving Checklist</title>
-  <meta name="description" content="A to-do list for moving GitHub repos: initial place → target place, with due dates and notes." />
-  <link rel="stylesheet" href="style.css" />
+  <title>RepoMove — Move GitHub repos with confidence</title>
+  <meta name="description" content="Track GitHub repo moves from initial account to target account. Checklists with links, due dates, tags." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- subtle bg -->
+  <div class="bg-orb orb-1" aria-hidden="true"></div>
+  <div class="bg-orb orb-2" aria-hidden="true"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <div class="logo" aria-hidden="true">◈</div>
+        <div class="logo" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7v10l9 5 9-5V7L12 2Z" fill="white" fill-opacity="0.95"/><path d="M12 2L12 22" stroke="rgba(0,0,0,.18)" stroke-width="1.2"/><path d="M3 7l9 5 9-5" stroke="rgba(0,0,0,.18)" stroke-width="1.2"/></svg>
+        </div>
         <div>
           <h1>RepoMove</h1>
-          <p class="subtitle" id="dateLine"></p>
+          <p class="subtitle"><span id="dateLine"></span> · move checklist</p>
         </div>
+        <span class="brand-badge">v2</span>
       </div>
       <div class="topbar-actions">
+        <button id="exportBtn" class="btn-ghost sm" title="Export JSON">Export</button>
+        <label class="btn-ghost sm import-btn" for="importFile">Import <input id="importFile" type="file" accept=".json" hidden></label>
         <button id="themeToggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">🌙</button>
-        <button id="addBtn" class="btn-primary">+ Add</button>
+        <button id="addBtn" class="btn-primary"><span class="plus">+</span> New move</button>
       </div>
     </header>
+
+    <!-- hero / summary -->
+    <section class="hero">
+      <div class="hero-copy">
+        <h2>Move repos from <span class="accent-text">initial</span> → <span class="accent-text">target</span> without losing track.</h2>
+        <p>Each item links to <code>github.com/&lt;account&gt;/&lt;repo&gt;</code> for source and destination. Search, tag, and drag to done.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="stat-k">Total</span><strong id="statTotal">0</strong></div>
+        <div class="stat"><span class="stat-k">Done</span><strong id="statDone">0</strong><span class="stat-dot done"></span></div>
+        <div class="stat"><span class="stat-k">In progress</span><strong id="statProgress">0</strong><span class="stat-dot prog"></span></div>
+        <div class="stat"><span class="stat-k">Blocked</span><strong id="statBlocked">0</strong><span class="stat-dot blocked"></span></div>
+        <div class="progress-ring" id="progressRing" aria-hidden="true">
+          <svg viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="16"/><circle id="ringFg" class="ring-fg" cx="22" cy="22" r="16"/></svg>
+          <span id="ringPct">0%</span>
+        </div>
+      </div>
+    </section>
 
     <div class="summary" aria-live="polite">
       <span id="summaryText"></span>
       <div class="bar"><div id="progressBar" class="bar-fill"></div></div>
     </div>
 
-    <div class="list-head">
+    <div class="toolbar">
       <div class="search-wrap">
         <span class="search-icon" aria-hidden="true">⌕</span>
-        <input id="searchInput" type="search" placeholder="Search name, path, notes, tags…" aria-label="Search" autocomplete="off" />
+        <input id="searchInput" type="search" placeholder="Search name, account, repo, notes, tags…" aria-label="Search" autocomplete="off" />
+        <button id="clearSearch" class="clear-btn hidden" aria-label="Clear search">✕</button>
       </div>
-      <div class="view-toggle" role="tablist" aria-label="View">
-        <button id="listViewBtn" class="toggle active" role="tab" aria-selected="true">List</button>
-        <button id="boardViewBtn" class="toggle" role="tab" aria-selected="false">Board</button>
+      <div class="toolbar-right">
+        <select id="sortSelect" class="sort-select" aria-label="Sort">
+          <option value="updated">Recent</option>
+          <option value="due">Due date</option>
+          <option value="name">Name A→Z</option>
+          <option value="status">Status</option>
+        </select>
+        <div class="view-toggle" role="tablist" aria-label="View">
+          <button id="listViewBtn" class="toggle active" role="tab" aria-selected="true" title="List view">☰ List</button>
+          <button id="boardViewBtn" class="toggle" role="tab" aria-selected="false" title="Board view">▦ Board</button>
+        </div>
       </div>
     </div>
 
     <div id="tagBar" class="tag-filter"></div>
+    <div id="statusBar" class="status-filter"></div>
 
     <main id="mainView">
-      <div id="listView" class="list">
-        <!-- items injected; statuses as checkboxes -->
-      </div>
-      <div id="boardView" class="board hidden">
-        <!-- injected -->
-      </div>
+      <div id="listView" class="list"></div>
+      <div id="boardView" class="board hidden"></div>
       <div id="emptyState" class="empty hidden">
-        <div class="empty-icon" aria-hidden="true">📦</div>
+        <div class="empty-art" aria-hidden="true">
+          <div class="empty-orb"></div>
+          <div class="empty-icon">◈</div>
+        </div>
         <h3>Nothing here yet</h3>
-        <p>Add a repo to your move checklist.</p>
-        <button id="emptyAddBtn" class="btn-primary">+ Add repo</button>
+        <p>Add your first move — link <code>old-account/repo</code> → <code>new-account/repo</code>.</p>
+        <button id="emptyAddBtn" class="btn-primary">+ Add repo move</button>
+        <button id="seedBtn" class="btn-ghost sm" style="margin-top:8px">Load demo data</button>
       </div>
     </main>
+
+    <footer class="foot">
+      <span>RepoMove · local-only · press <kbd>N</kbd> to add</span>
+      <span class="foot-links"><a href="https://github.com" target="_blank" rel="noopener">github.com</a> · <span id="countLabel"></span></span>
+    </footer>
   </div>
 
   <!-- Add / edit dialog -->
   <dialog id="repoDialog" aria-labelledby="dialogTitle">
     <form id="repoForm" novalidate>
       <div class="dialog-head">
-        <h2 id="dialogTitle">Add repo</h2>
+        <div>
+          <h2 id="dialogTitle">Add repo move</h2>
+          <p class="dialog-sub">Link both GitHub accounts with <code>account/repo</code> format.</p>
+        </div>
         <button type="button" class="icon-btn" id="closeDialog" aria-label="Close">✕</button>
       </div>
+
       <div class="form-grid">
         <label class="span-2">
-          <span>Repo name <em>*</em></span>
-          <input id="fName" required placeholder="e.g. payment-service" maxlength="80" />
+          <span>Repo display name <em>*</em></span>
+          <input id="fName" required placeholder="e.g. payment-service" maxlength="80" autocomplete="off" />
+          <small class="hint">Shows as title. Usually same as repo slug.</small>
         </label>
+
         <label>
-          <span>Initial place <em>*</em></span>
-          <input id="fInitial" required placeholder="github.com/old-org" maxlength="120" />
+          <span>Initial repo <em>*</em> <span class="req-hint">account/repo</span></span>
+          <div class="input-with-icon">
+            <span class="input-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span>
+            <input id="fInitial" required placeholder="e.g. old-org/payment-service" maxlength="120" autocomplete="off" spellcheck="false" />
+          </div>
+          <small class="hint" id="hintInitial">Will link to <code>github.com/owner/repo</code></small>
+          <a id="previewInitial" class="preview-link hidden" target="_blank" rel="noopener"></a>
         </label>
+
         <label>
-          <span>Target place <em>*</em></span>
-          <input id="fTarget" required placeholder="github.com/new-org" maxlength="120" />
+          <span>Target repo <em>*</em> <span class="req-hint">account/repo</span></span>
+          <div class="input-with-icon">
+            <span class="input-icon target" aria-hidden="true">↗</span>
+            <input id="fTarget" required placeholder="e.g. new-org/payment-service" maxlength="120" autocomplete="off" spellcheck="false" />
+          </div>
+          <small class="hint" id="hintTarget">Destination account & repo. Can be same name, different org.</small>
+          <a id="previewTarget" class="preview-link hidden" target="_blank" rel="noopener"></a>
         </label>
+
         <label class="span-2">
-          <span>GitHub link</span>
-          <input id="fLink" type="url" placeholder="https://github.com/org/repo" inputmode="url" />
+          <span>Extra GitHub link <span class="optional">(optional)</span></span>
+          <input id="fLink" type="url" placeholder="https://github.com/org/repo/issues/42 or docs URL" inputmode="url" spellcheck="false" />
+          <small class="hint">For PR, issue, or migration doc. Shown as secondary link.</small>
         </label>
+
         <label>
           <span>Due date</span>
           <input id="fDue" type="date" />
         </label>
         <label>
           <span>Tags</span>
-          <input id="fTags" placeholder="e.g. backend, high-priority" maxlength="120" />
+          <input id="fTags" placeholder="backend, high-priority" maxlength="120" autocomplete="off" />
         </label>
+
         <label class="span-2">
           <span>Notes</span>
-          <textarea id="fNotes" rows="2" maxlength="300" placeholder="Owners, checklist, risks…"></textarea>
+          <textarea id="fNotes" rows="2" maxlength="400" placeholder="Owners, runbook, risks…"></textarea>
         </label>
+
         <label class="span-2">
           <span>Status</span>
           <div class="status-picker">
-            <label><input type="radio" name="fStatus" value="planned" checked /> Planned</label>
-            <label><input type="radio" name="fStatus" value="in_progress" /> In progress</label>
-            <label><input type="radio" name="fStatus" value="done" /> Done</label>
-            <label><input type="radio" name="fStatus" value="blocked" /> Blocked</label>
+            <label><input type="radio" name="fStatus" value="planned" checked /> <span class="sdot planned"></span> Planned</label>
+            <label><input type="radio" name="fStatus" value="in_progress" /> <span class="sdot prog"></span> In progress</label>
+            <label><input type="radio" name="fStatus" value="done" /> <span class="sdot done"></span> Done</label>
+            <label><input type="radio" name="fStatus" value="blocked" /> <span class="sdot blocked"></span> Blocked</label>
           </div>
         </label>
       </div>
+
+      <p id="formError" class="form-error hidden" role="alert"></p>
+
       <div class="dialog-actions">
         <button type="button" class="btn-ghost" id="cancelBtn">Cancel</button>
-        <button type="submit" class="btn-primary" id="saveBtn">Save</button>
+        <button type="submit" class="btn-primary" id="saveBtn">Save move</button>
       </div>
     </form>
   </dialog>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
-
   <script type="module" src="app.js"></script>
 </body>
 </html>
