@@ -414,6 +414,18 @@ textarea{resize:vertical;min-height:56px}
 .valid-badge.error,.valid-badge.rate{color:var(--orange);background:rgba(251,146,60,.10);border-color:rgba(251,146,60,.22)}
 .copy-cmd{width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2);color:var(--muted);font-size:12px;display:inline-grid;place-items:center;flex-shrink:0}
 .copy-cmd:hover{color:var(--accent);border-color:rgba(124,108,255,.3);background:var(--surface)}
+.link-btn{background:none;border:0;color:var(--accent);font-size:11px;font-weight:750;cursor:pointer;padding:0 4px}
+.link-btn:hover{text-decoration:underline}
+.batch-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;flex-wrap:wrap}
+.batch-info{font-size:12px;font-weight:700;color:var(--muted)}
+.batch-actions{display:flex;gap:6px;flex-wrap:wrap}
+.btn-ghost.danger{color:var(--red);border-color:rgba(255,77,106,.22)}
+.btn-ghost.danger:hover{background:rgba(255,77,106,.08)}
+.notes-checklist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.notes-checklist li{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;line-height:1.4;background:var(--surface-2);border:1px solid var(--border);padding:6px 8px;border-radius:9px}
+.notes-checklist input[type="checkbox"]{accent-color:var(--accent);width:16px;height:16px;flex-shrink:0;margin-top:1px}
+.notes-checklist li.done{opacity:.6}
+.notes-checklist li.done span{text-decoration:line-through}
 
 /* ensure inputs never overflow viewport */
 input,select,textarea{max-width:100%}

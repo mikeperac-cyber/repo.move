@@ -47,6 +47,10 @@ const els = {
   dateLine: document.getElementById('dateLine'),
   exportBtn: document.getElementById('exportBtn'),
   importFile: document.getElementById('importFile'),
+  batchBar: document.getElementById('batchBar'),
+  batchInfo: document.getElementById('batchInfo'),
+  batchCopyBtn: document.getElementById('batchCopyBtn'),
+  insertChecklistBtn: document.getElementById('insertChecklistBtn'),
 };
 
 let moves = load();
@@ -314,6 +318,65 @@ function statusFilterBarHtml(){
   return statuses.map(s=>`<button class="status-chip${activeStatus===s?' active':''}" data-statusfilter="${s}">${labelForStatus(s)}</button>`).join('') + (activeStatus ? ` <button class="status-chip" data-statusfilter="__clear">✕ clear</button>` : '');
 }
 
+// ---------- checklist template ----------
+const CHECKLIST_TEMPLATE = `- [ ] Transfer repo (gh repo transfer)
+- [ ] Update CI secrets & deploy keys
+- [ ] Update code references & docs
+- [ ] Verify webhooks & branch protection
+- [ ] Announce in Slack / archive old`;
+function notesToHtml(notes, id){
+  if(!notes) return '';
+  const lines = notes.split('\n');
+  const hasCheck = lines.some(l=> /^\s*-\s*\[( |x|X)\]\s+/.test(l));
+  if(!hasCheck){
+    return `<div class="todo-notes">${escapeHtml(notes)}</div>`;
+  }
+  const lis = lines.map((line, idx)=>{
+    const m = line.match(/^\s*-\s*\[( |x|X)\]\s+(.*)$/);
+    if(m){
+      const checked = m[1].toLowerCase()==='x';
+      return `<li class="${checked?'done':''}"><input type="checkbox" data-check="${idx}" data-id="${escapeAttr(id)}" ${checked?'checked':''}><span>${escapeHtml(m[2])}</span></li>`;
+    } else if(line.trim()===''){
+      return '';
+    } else {
+      return `<li><span>${escapeHtml(line)}</span></li>`;
+    }
+  }).join('');
+  return `<ul class="notes-checklist">${lis}</ul>`;
+}
+function toggleChecklistItem(id, lineIdx){
+  const m = moves.find(x=>x.id===id); if(!m) return;
+  const lines = m.notes.split('\n');
+  const l = lines[lineIdx]; if(!l) return;
+  const mm = l.match(/^(\s*-\s*\[)( |x|X)(\]\s+.*)$/);
+  if(!mm) return;
+  const next = mm[2]===' ' ? 'x' : ' ';
+  lines[lineIdx] = mm[1]+next+mm[3];
+  pushHistory();
+  m.notes = lines.join('\n'); m.updatedAt=Date.now();
+  persistAndRender();
+}
+
+// ---------- deep-link ----------
+function syncUrl(){
+  const p = new URLSearchParams();
+  const q = els.search.value.trim(); if(q) p.set('q', q);
+  if(activeTag) p.set('tag', activeTag);
+  if(activeStatus) p.set('status', activeStatus);
+  if(els.sortSelect.value!=='updated') p.set('sort', els.sortSelect.value);
+  if(viewMode!=='list') p.set('view', viewMode);
+  const s = p.toString();
+  history.replaceState(null,'', s ? '?'+s : location.pathname);
+}
+function loadFromUrl(){
+  const p = new URLSearchParams(location.search);
+  if(p.get('q')) els.search.value = p.get('q');
+  if(p.get('tag')) activeTag = p.get('tag');
+  if(p.get('status') && ['planned','in_progress','blocked','done'].includes(p.get('status'))) activeStatus=p.get('status');
+  if(p.get('sort') && ['updated','due','name','status'].includes(p.get('sort'))) els.sortSelect.value=p.get('sort');
+  if(p.get('view') && ['list','board'].includes(p.get('view'))){ viewMode=p.get('view'); localStorage.setItem('repoMover:view2', viewMode); }
+}
+
 // ---------- filtering + sorting ----------
 function filtered(){
   const q = els.search.value.trim().toLowerCase();
@@ -378,7 +441,7 @@ function listItemHtml(m){
           <button class="copy-cmd" data-action="copycmd" data-id="${m.id}" title="Copy transfer command: ${escapeAttr(cmd)}" onclick="event.stopPropagation()">⎘</button>
         </div>
         <div class="todo-tags">${tagChipsHtml(m.tags)}</div>
-        ${m.notes? `<div class="todo-notes">${escapeHtml(m.notes)}</div>`:''}
+        ${m.notes? notesToHtml(m.notes, m.id):''}
       </div>
       <div class="item-actions">
         ${extra}
@@ -416,7 +479,7 @@ function renderBoard(){
               <div class="card-route">${repoLinkHtml(m.initialPlace,'')} <span class="arrow">→</span> ${repoLinkHtml(m.targetPlace,'target')}</div>
               ${dueHtml(m)}
               <div class="todo-tags">${tagChipsHtml(m.tags)}</div>
-              ${m.notes? `<div class="card-note">${escapeHtml(m.notes)}</div>`:''}
+              ${m.notes? notesToHtml(m.notes, m.id).replace('todo-notes','card-note').replace('notes-checklist','notes-checklist') :''}
               ${m.githubUrl? `<a class="card-link" href="${escapeAttr(m.githubUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">↗ ${escapeHtml(hostFromUrl(m.githubUrl))}</a>`:''}
               <div class="card-actions">
                 <button data-action="copycmd" data-id="${m.id}" onclick="event.stopPropagation()">⎘ cmd</button>
@@ -456,6 +519,18 @@ function render(){
   els.tagBar.innerHTML = tagFilterBarHtml();
   els.statusBar.innerHTML = statusFilterBarHtml();
   els.clearSearch.classList.toggle('hidden', !els.search.value);
+  // batch bar
+  if(els.batchBar){
+    const shown = items.length;
+    const total = moves.length;
+    if(shown>0 && total>0){
+      els.batchBar.classList.remove('hidden');
+      els.batchInfo.textContent = `${shown} shown · ${total} total`;
+    } else {
+      els.batchBar.classList.add('hidden');
+    }
+  }
+  syncUrl();
 
   const isEmpty = moves.length===0;
   const filteredEmpty = !isEmpty && items.length===0;
@@ -560,6 +635,44 @@ document.addEventListener('click', e=>{
     if(activeTag) els.search.value = '';
     render();
   }
+  // checklist toggle
+  const chk = e.target.closest('[data-check]');
+  if(chk){
+    e.stopPropagation();
+    toggleChecklistItem(chk.dataset.id, Number(chk.dataset.check));
+    return;
+  }
+});
+
+// batch actions
+document.addEventListener('click', e=>{
+  const b = e.target.closest('[data-batch]');
+  if(!b) return;
+  const action = b.dataset.batch;
+  const shown = filtered();
+  if(!shown.length) return;
+  if(action==='delete'){
+    if(!confirm(`Delete ${shown.length} shown moves?`)) return;
+    pushHistory();
+    const ids = new Set(shown.map(m=>m.id));
+    moves = moves.filter(m=> !ids.has(m.id));
+    persistAndRender(); toast(`Deleted ${shown.length}`);
+  } else if(['planned','in_progress','done','blocked'].includes(action)){
+    pushHistory();
+    for(const m of shown){ m.status=action; m.updatedAt=Date.now(); }
+    persistAndRender(); toast(`${shown.length} → ${labelForStatus(action)}`);
+  }
+});
+if(els.batchCopyBtn) els.batchCopyBtn.addEventListener('click', ()=>{
+  const shown = filtered();
+  const cmds = shown.map(transferCmd).filter(Boolean).join('\n');
+  if(!cmds) { toast('No transfer cmds'); return; }
+  navigator.clipboard.writeText(cmds).then(()=> toast(`Copied ${shown.length} cmds`)).catch(()=> toast(cmds.slice(0,200)));
+});
+if(els.insertChecklistBtn) els.insertChecklistBtn.addEventListener('click', ()=>{
+  const cur = els.fNotes.value.trim();
+  els.fNotes.value = cur ? cur + '\n' + CHECKLIST_TEMPLATE : CHECKLIST_TEMPLATE;
+  els.fNotes.focus();
 });
 
 // ---------- dialog ----------
@@ -751,4 +864,5 @@ if('serviceWorker' in navigator){
 // ---------- init ----------
 applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
 els.dateLine.textContent = new Date().toLocaleDateString(undefined, {weekday:'short', month:'long', day:'numeric'});
+loadFromUrl();
 render();

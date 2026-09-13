@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <!-- subtle bg -->
@@ -63,7 +63,7 @@
       <div class="bar"><div id="progressBar" class="bar-fill"></div></div>
     </div>
 
-    <div class="toolbar">
+     <div class="toolbar">
       <div class="search-wrap">
         <span class="search-icon" aria-hidden="true">⌕</span>
         <input id="searchInput" type="search" placeholder="Search name, account, repo, notes, tags…" aria-label="Search" autocomplete="off" />
@@ -80,6 +80,16 @@
           <button id="listViewBtn" class="toggle active" role="tab" aria-selected="true" title="List view">☰ List</button>
           <button id="boardViewBtn" class="toggle" role="tab" aria-selected="false" title="Board view">▦ Board</button>
         </div>
+      </div>
+    </div>
+    <div id="batchBar" class="batch-bar hidden">
+      <span id="batchInfo" class="batch-info"></span>
+      <div class="batch-actions">
+        <button data-batch="planned" class="btn-ghost sm">→ Planned</button>
+        <button data-batch="in_progress" class="btn-ghost sm">→ In progress</button>
+        <button data-batch="done" class="btn-ghost sm">→ Done</button>
+        <button data-batch="delete" class="btn-ghost sm danger">Delete shown</button>
+        <button id="batchCopyBtn" class="btn-ghost sm">⎘ Copy cmds</button>
       </div>
     </div>
 
@@ -160,8 +170,9 @@
         </label>
 
         <label class="span-2">
-          <span>Notes</span>
-          <textarea id="fNotes" rows="2" maxlength="400" placeholder="Owners, runbook, risks…"></textarea>
+          <span>Notes <button type="button" id="insertChecklistBtn" class="link-btn" title="Insert move checklist template">+ checklist template</button></span>
+          <textarea id="fNotes" rows="5" maxlength="800" placeholder="Owners, runbook, risks… — use - [ ] for checklist items"></textarea>
+          <small class="hint">Tip: use <code>- [ ] transfer repo</code> / <code>- [x] done</code> for interactive checklist in cards.</small>
         </label>
 
         <label class="span-2">
@@ -185,6 +196,6 @@
   </dialog>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
-  <script type="module" src="app.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
