@@ -122,61 +122,63 @@
       <div class="dialog-head">
         <div>
           <h2 id="dialogTitle">Add repo move</h2>
-          <p class="dialog-sub">Link both GitHub accounts with <code>account/repo</code> format.</p>
+          <p class="dialog-sub">Source → Destination</p>
         </div>
         <button type="button" class="icon-btn" id="closeDialog" aria-label="Close">✕</button>
       </div>
 
-      <div class="form-grid">
-        <label class="span-2">
-          <span>Repo display name <em>*</em></span>
+      <div class="form-simple">
+        <label class="field">
+          <span class="field-label">Repo name <em>*</em></span>
           <input id="fName" required placeholder="e.g. payment-service" maxlength="80" autocomplete="off" />
-          <small class="hint">Shows as title. Usually same as repo slug.</small>
         </label>
 
-        <label>
-          <span>Initial repo <em>*</em> <span class="req-hint">account/repo</span></span>
-          <div class="input-with-icon">
-            <span class="input-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span>
-            <input id="fInitial" required placeholder="e.g. old-org/payment-service" maxlength="120" autocomplete="off" spellcheck="false" />
-          </div>
-          <small class="hint" id="hintInitial">Will link to <code>github.com/owner/repo</code></small>
-          <div class="preview-row"><a id="previewInitial" class="preview-link hidden" target="_blank" rel="noopener"></a><span id="validInitial" class="valid-badge"></span></div>
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Initial repo <em>*</em></span>
+            <div class="input-with-icon">
+              <span class="input-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></span>
+              <input id="fInitial" required placeholder="old-org / repo" maxlength="120" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="preview-row"><a id="previewInitial" class="preview-link hidden" target="_blank" rel="noopener"></a><span id="validInitial" class="valid-badge"></span></div>
+          </label>
+          <label class="field">
+            <span class="field-label">Target repo <em>*</em></span>
+            <div class="input-with-icon">
+              <span class="input-icon target" aria-hidden="true">↗</span>
+              <input id="fTarget" required placeholder="new-org / repo" maxlength="120" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="preview-row"><a id="previewTarget" class="preview-link hidden" target="_blank" rel="noopener"></a><span id="validTarget" class="valid-badge"></span></div>
+          </label>
+        </div>
+        <p class="form-hint">Use <code>account/repo</code> — links to <code>github.com</code> automatically.</p>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Due date</span>
+            <input id="fDue" type="date" />
+          </label>
+          <label class="field">
+            <span class="field-label">Tags</span>
+            <input id="fTags" placeholder="backend, high-priority" maxlength="120" autocomplete="off" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field-label">Notes <span class="field-optional">optional</span> <button type="button" id="insertChecklistBtn" class="link-btn" title="Insert checklist">+ checklist</button></span>
+          <textarea id="fNotes" rows="3" maxlength="800" placeholder="Owners, risks…"></textarea>
         </label>
 
-        <label>
-          <span>Target repo <em>*</em> <span class="req-hint">account/repo</span></span>
-          <div class="input-with-icon">
-            <span class="input-icon target" aria-hidden="true">↗</span>
-            <input id="fTarget" required placeholder="e.g. new-org/payment-service" maxlength="120" autocomplete="off" spellcheck="false" />
-          </div>
-          <small class="hint" id="hintTarget">Destination account & repo. Can be same name, different org.</small>
-          <div class="preview-row"><a id="previewTarget" class="preview-link hidden" target="_blank" rel="noopener"></a><span id="validTarget" class="valid-badge"></span></div>
-        </label>
+        <details class="advanced">
+          <summary>More options</summary>
+          <label class="field" style="margin-top:10px">
+            <span class="field-label">Extra GitHub link <span class="field-optional">optional</span></span>
+            <input id="fLink" type="url" placeholder="https://github.com/org/repo/issues/42" inputmode="url" spellcheck="false" />
+          </label>
+        </details>
 
-        <label class="span-2">
-          <span>Extra GitHub link <span class="optional">(optional)</span></span>
-          <input id="fLink" type="url" placeholder="https://github.com/org/repo/issues/42 or docs URL" inputmode="url" spellcheck="false" />
-          <small class="hint">For PR, issue, or migration doc. Shown as secondary link.</small>
-        </label>
-
-        <label>
-          <span>Due date</span>
-          <input id="fDue" type="date" />
-        </label>
-        <label>
-          <span>Tags</span>
-          <input id="fTags" placeholder="backend, high-priority" maxlength="120" autocomplete="off" />
-        </label>
-
-        <label class="span-2">
-          <span>Notes <button type="button" id="insertChecklistBtn" class="link-btn" title="Insert move checklist template">+ checklist template</button></span>
-          <textarea id="fNotes" rows="5" maxlength="800" placeholder="Owners, runbook, risks… — use - [ ] for checklist items"></textarea>
-          <small class="hint">Tip: use <code>- [ ] transfer repo</code> / <code>- [x] done</code> for interactive checklist in cards.</small>
-        </label>
-
-        <label class="span-2">
-          <span>Status</span>
+        <label class="field">
+          <span class="field-label">Status</span>
           <div class="status-picker">
             <label><input type="radio" name="fStatus" value="planned" checked /> <span class="sdot planned"></span> Planned</label>
             <label><input type="radio" name="fStatus" value="in_progress" /> <span class="sdot prog"></span> In progress</label>
