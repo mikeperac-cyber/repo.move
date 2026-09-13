@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RepoMove — Move GitHub repos with confidence</title>
   <meta name="description" content="Track GitHub repo moves from initial account to target account. Checklists with links, due dates, tags." />
+  <meta name="theme-color" content="#7c6cff" />
+  <link rel="manifest" href="manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -29,6 +31,8 @@
         <span class="brand-badge">v2</span>
       </div>
       <div class="topbar-actions">
+        <button id="undoBtn" class="btn-ghost sm hidden" title="Undo last change (Ctrl+Z)">↩ Undo</button>
+        <button id="bulkFetchBtn" class="btn-ghost sm" title="Fetch repos from GitHub org/account">⇄ Fetch org</button>
         <button id="exportBtn" class="btn-ghost sm" title="Export JSON">Export</button>
         <label class="btn-ghost sm import-btn" for="importFile">Import <input id="importFile" type="file" accept=".json" hidden></label>
         <button id="themeToggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">🌙</button>
@@ -127,7 +131,7 @@
             <input id="fInitial" required placeholder="e.g. old-org/payment-service" maxlength="120" autocomplete="off" spellcheck="false" />
           </div>
           <small class="hint" id="hintInitial">Will link to <code>github.com/owner/repo</code></small>
-          <a id="previewInitial" class="preview-link hidden" target="_blank" rel="noopener"></a>
+          <div class="preview-row"><a id="previewInitial" class="preview-link hidden" target="_blank" rel="noopener"></a><span id="validInitial" class="valid-badge"></span></div>
         </label>
 
         <label>
@@ -137,7 +141,7 @@
             <input id="fTarget" required placeholder="e.g. new-org/payment-service" maxlength="120" autocomplete="off" spellcheck="false" />
           </div>
           <small class="hint" id="hintTarget">Destination account & repo. Can be same name, different org.</small>
-          <a id="previewTarget" class="preview-link hidden" target="_blank" rel="noopener"></a>
+          <div class="preview-row"><a id="previewTarget" class="preview-link hidden" target="_blank" rel="noopener"></a><span id="validTarget" class="valid-badge"></span></div>
         </label>
 
         <label class="span-2">

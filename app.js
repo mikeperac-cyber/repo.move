@@ -5,6 +5,8 @@ const els = {
   themeToggle: document.getElementById('themeToggle'),
   addBtn: document.getElementById('addBtn'),
   emptyAddBtn: document.getElementById('emptyAddBtn'),
+  undoBtn: document.getElementById('undoBtn'),
+  bulkFetchBtn: document.getElementById('bulkFetchBtn'),
   search: document.getElementById('searchInput'),
   clearSearch: document.getElementById('clearSearch'),
   sortSelect: document.getElementById('sortSelect'),
@@ -38,6 +40,8 @@ const els = {
   fTags: document.getElementById('fTags'),
   previewInitial: document.getElementById('previewInitial'),
   previewTarget: document.getElementById('previewTarget'),
+  validInitial: document.getElementById('validInitial'),
+  validTarget: document.getElementById('validTarget'),
   tagBar: document.getElementById('tagBar'),
   statusBar: document.getElementById('statusBar'),
   dateLine: document.getElementById('dateLine'),
@@ -51,6 +55,33 @@ let editingId = null;
 let draggedId = null;
 let activeTag = null;
 let activeStatus = null;
+
+// ---------- history (undo) ----------
+const HISTORY_LIMIT = 30;
+let historyStack = [];
+function pushHistory(){
+  try{ historyStack.push(JSON.stringify(moves)); if(historyStack.length>HISTORY_LIMIT) historyStack.shift(); }catch{}
+  updateUndoBtn();
+}
+function updateUndoBtn(){
+  if(!els.undoBtn) return;
+  els.undoBtn.classList.toggle('hidden', historyStack.length===0);
+}
+function undo(){
+  if(!historyStack.length) return;
+  const prev = historyStack.pop();
+  try{
+    moves = JSON.parse(prev).map(migrate);
+    save(); render(); updateUndoBtn();
+    toast('Undone ↩');
+  }catch{ toast('Undo failed'); }
+}
+if(els.undoBtn) els.undoBtn.addEventListener('click', undo);
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z' && !els.dialog.open){
+    e.preventDefault(); undo();
+  }
+});
 
 // ---------- theme ----------
 function applyTheme(theme){
@@ -80,16 +111,14 @@ function toast(msg){
   els.toast.textContent = msg;
   els.toast.classList.remove('hidden');
   clearTimeout(toast._t);
-  toast._t = setTimeout(()=> els.toast.classList.add('hidden'), 2200);
+  toast._t = setTimeout(()=> els.toast.classList.add('hidden'), 2400);
 }
 
 // ---------- repo parsing (account/repo) ----------
 function parseRepo(input){
   const raw = String(input||'').trim();
   if(!raw) return null;
-  // strip protocol + domain if present
   let s = raw;
-  // handle github.com URLs or any url with owner/repo
   try{
     if(s.includes('://')){
       const u = new URL(s);
@@ -101,13 +130,11 @@ function parseRepo(input){
       }
     }
   }catch{}
-  // handle github.com/owner/repo without protocol
   if(s.includes('github.com/')){
     const idx = s.indexOf('github.com/');
     s = s.slice(idx + 'github.com/'.length);
   }
   s = s.replace(/^\/+/, '').replace(/\.git\/?$/, '').trim();
-  // now expect owner/repo
   const parts = s.split('/').filter(Boolean);
   if(parts.length === 2 && isValidOwner(parts[0]) && isValidRepo(parts[1])){
     return { owner: parts[0], repo: parts[1], slug:`${parts[0]}/${parts[1]}`, url:`https://github.com/${parts[0]}/${parts[1]}` };
@@ -119,10 +146,6 @@ function parseRepo(input){
 }
 function isValidOwner(s){ return /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$/.test(s); }
 function isValidRepo(s){ return /^[a-zA-Z0-9._-]{1,100}$/.test(s); }
-function repoUrl(slug){
-  const p = parseRepo(slug);
-  return p ? p.url : null;
-}
 function repoLinkHtml(slug, cls=''){
   const p = parseRepo(slug);
   if(!p) return `<span class="repo-pill ${cls}" title="${escapeAttr(slug)}"><span class="gh">⎇</span> ${escapeHtml(slug)}</span>`;
@@ -140,8 +163,83 @@ function updatePreview(inputEl, previewEl){
     previewEl.textContent='';
   }
 }
-els.fInitial.addEventListener('input', ()=> updatePreview(els.fInitial, els.previewInitial));
-els.fTarget.addEventListener('input', ()=> updatePreview(els.fTarget, els.previewTarget));
+
+// ---------- live GH validation ----------
+const validCache = new Map(); // slug -> {state, private, stars}
+let validTimers = new Map();
+function setBadge(el, state, detail=''){
+  if(!el) return;
+  el.className='valid-badge '+state;
+  if(state==='checking') el.textContent='… checking';
+  else if(state==='ok') el.textContent = detail ? `✓ ${detail}` : '✓ exists';
+  else if(state==='notfound') el.textContent='✗ not found';
+  else if(state==='error') el.textContent = detail ? `⚠ ${detail}` : '⚠ error';
+  else if(state==='rate') el.textContent='⚠ rate-limited';
+  else el.textContent='';
+}
+function validateRepoLive(slug, badgeEl){
+  if(!badgeEl) return;
+  if(!slug || !parseRepo(slug)){
+    setBadge(badgeEl,'',''); return;
+  }
+  const p = parseRepo(slug);
+  const key = p.slug;
+  if(validCache.has(key)){
+    const c = validCache.get(key);
+    if(c.state==='ok') setBadge(badgeEl,'ok', c.private?'private':'public');
+    else if(c.state==='notfound') setBadge(badgeEl,'notfound');
+    else setBadge(badgeEl,c.state, c.detail||'');
+    return;
+  }
+  setBadge(badgeEl,'checking');
+  // debounce per badge
+  clearTimeout(validTimers.get(badgeEl));
+  const t = setTimeout(async ()=>{
+    try{
+      const res = await fetch(`https://api.github.com/repos/${key}`, { headers:{'Accept':'application/vnd.github.v3+json'} });
+      if(res.status===200){
+        const j = await res.json();
+        validCache.set(key,{state:'ok', private: j.private, stars: j.stargazers_count});
+        setBadge(badgeEl,'ok', j.private?'private · ★'+j.stargazers_count : 'public · ★'+j.stargazers_count);
+      } else if(res.status===404){
+        validCache.set(key,{state:'notfound'});
+        setBadge(badgeEl,'notfound');
+      } else if(res.status===403){
+        const remaining = res.headers.get('x-ratelimit-remaining');
+        if(remaining==='0'){ validCache.set(key,{state:'rate'}); setBadge(badgeEl,'rate'); }
+        else { setBadge(badgeEl,'error', res.status+' '+res.statusText); }
+      } else {
+        setBadge(badgeEl,'error', res.status+'');
+      }
+    }catch(e){
+      setBadge(badgeEl,'error', e.message.slice(0,22));
+    }
+  }, 520);
+  validTimers.set(badgeEl, t);
+}
+function wireValidation(){
+  els.fInitial.addEventListener('input', ()=>{
+    updatePreview(els.fInitial, els.previewInitial);
+    const p=parseRepo(els.fInitial.value);
+    validateRepoLive(p? p.slug : '', els.validInitial);
+  });
+  els.fTarget.addEventListener('input', ()=>{
+    updatePreview(els.fTarget, els.previewTarget);
+    // target is destination — 404 is expected for new location, so show hint
+    const p=parseRepo(els.fTarget.value);
+    if(!p){ setBadge(els.validTarget,'',''); return; }
+    // we still check but badge wording differs
+    validateRepoLive(p.slug, els.validTarget);
+    // after fetch, if ok we warn "already exists", if 404 we show "available"
+    const orig = els.validTarget.textContent;
+    // override label after cache resolves: wrap after a tick
+    setTimeout(()=>{
+      if(els.validTarget.textContent.includes('not found')){ els.validTarget.textContent='○ available (not yet created)'; els.validTarget.className='valid-badge available'; }
+      else if(els.validTarget.textContent.includes('exists')){ els.validTarget.textContent=els.validTarget.textContent.replace('exists','already exists'); }
+    }, 900);
+  });
+}
+wireValidation();
 
 // ---------- storage ----------
 function load(){
@@ -152,7 +250,6 @@ function load(){
   return [];
 }
 function migrate(m){
-  // ensure fields & normalize slugs (strip github.com prefix if old data)
   const n = { ...m };
   if(n.initialPlace) n.initialPlace = normalizeSlug(n.initialPlace);
   if(n.targetPlace) n.targetPlace = normalizeSlug(n.targetPlace);
@@ -240,10 +337,17 @@ function filtered(){
       const o={planned:0,in_progress:1,blocked:2,done:3};
       return (o[a.status]??9)-(o[b.status]??9);
     }
-    // updated: newest first
     return (b.updatedAt||0)-(a.updatedAt||0);
   });
   return arr;
+}
+
+// ---------- transfer command helper ----------
+function transferCmd(m){
+  const init = parseRepo(m.initialPlace);
+  const targ = parseRepo(m.targetPlace);
+  if(!init || !targ) return '';
+  return `gh repo transfer ${init.slug} ${targ.owner} --confirm  # or: gh api repos/${init.slug}/transfer -f new_owner=${targ.owner}`;
 }
 
 // ---------- list view ----------
@@ -252,6 +356,7 @@ function listItemHtml(m){
   const checked = done ? 'checked' : '';
   const strikethrough = done ? ' style="text-decoration:line-through;opacity:.6"' : '';
   const extra = m.githubUrl ? `<a class="item-link" href="${escapeAttr(m.githubUrl)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(m.githubUrl)}" onclick="event.stopPropagation()">↗</a>` : '';
+  const cmd = transferCmd(m);
   return `
     <div class="todo-item${done?' done':''}" data-id="${m.id}" data-status="${m.status}" draggable="true" role="button" tabindex="0" aria-label="Edit ${escapeAttr(m.name)}">
       <label class="checkbox" onclick="event.stopPropagation()">
@@ -270,6 +375,7 @@ function listItemHtml(m){
           <span class="arrow">→</span>
           ${repoLinkHtml(m.targetPlace,'target')}
           ${m.status==='blocked'? `<span class="status-badge blocked">blocked</span>`:''}
+          <button class="copy-cmd" data-action="copycmd" data-id="${m.id}" title="Copy transfer command: ${escapeAttr(cmd)}" onclick="event.stopPropagation()">⎘</button>
         </div>
         <div class="todo-tags">${tagChipsHtml(m.tags)}</div>
         ${m.notes? `<div class="todo-notes">${escapeHtml(m.notes)}</div>`:''}
@@ -313,6 +419,7 @@ function renderBoard(){
               ${m.notes? `<div class="card-note">${escapeHtml(m.notes)}</div>`:''}
               ${m.githubUrl? `<a class="card-link" href="${escapeAttr(m.githubUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">↗ ${escapeHtml(hostFromUrl(m.githubUrl))}</a>`:''}
               <div class="card-actions">
+                <button data-action="copycmd" data-id="${m.id}" onclick="event.stopPropagation()">⎘ cmd</button>
                 <button data-action="edit" data-id="${m.id}" onclick="event.stopPropagation()">Edit</button>
                 <button data-action="delete" data-id="${m.id}" onclick="event.stopPropagation()">Delete</button>
               </div>
@@ -336,8 +443,7 @@ function render(){
 
   els.summaryText.textContent = `${done}/${total} done${shown!==total?` · ${shown} shown`:''} · drag cards to change status`;
   els.progressBar.style.width = pct + '%';
-  // ring
-  const circumference = 2 * Math.PI * 16; // r=16
+  const circumference = 2 * Math.PI * 16;
   const offset = circumference * (1 - pct/100);
   if(els.ringFg){ els.ringFg.style.strokeDasharray = String(circumference); els.ringFg.style.strokeDashoffset = String(offset); }
   if(els.ringPct) els.ringPct.textContent = pct + '%';
@@ -367,6 +473,7 @@ function render(){
   els.boardViewBtn.setAttribute('aria-selected', String(!isList));
 
   if(isList) renderList(); else renderBoard();
+  updateUndoBtn();
 }
 
 // ---------- drag (board) ----------
@@ -387,39 +494,43 @@ els.boardView.addEventListener('drop', e=>{
   e.preventDefault(); col.classList.remove('drag-over');
   const st=col.dataset.group;
   const item=moves.find(m=>m.id===draggedId); if(!item) return;
-  if(item.status!==st){ item.status=st; item.updatedAt=Date.now(); persistAndRender(); toast(`"${item.name}" → ${labelForStatus(st)}`); }
+  if(item.status!==st){ pushHistory(); item.status=st; item.updatedAt=Date.now(); persistAndRender(); toast(`"${item.name}" → ${labelForStatus(st)}`); }
 });
 
-// ---------- actions (delegated) ----------
+// ---------- actions ----------
 document.addEventListener('click', e=>{
   const btn=e.target.closest('[data-action]');
   if(!btn) return;
   const {action, id}=btn.dataset;
   if(action==='toggle'){
     const m=moves.find(x=>x.id===id); if(!m) return;
+    pushHistory();
     m.status = m.status==='done' ? 'planned' : 'done';
     m.updatedAt=Date.now();
     persistAndRender(); toast(m.status==='done'?'Done ✓':'Back to planned');
   }
   else if(action==='edit') openDialog('edit', id);
+  else if(action==='copycmd'){
+    const m=moves.find(x=>x.id===id); if(!m) return;
+    const cmd=transferCmd(m);
+    navigator.clipboard.writeText(cmd).then(()=> toast('Copied: '+cmd.slice(0,48)+'…')).catch(()=> toast(cmd));
+  }
   else if(action==='delete'){
     const m=moves.find(x=>x.id===id); if(!m) return;
     if(confirm(`Delete "${m.name}"?`)){
+      pushHistory();
       moves = moves.filter(x=>x.id!==id);
-      persistAndRender(); toast('Deleted');
+      persistAndRender(); toast('Deleted — ↩ Undo to restore');
     }
   }
 });
 
-// card / row click opens edit (ignore interactive children)
 document.addEventListener('click', e=>{
-  if(e.target.closest('button, a, input, label, .tag, .repo-pill')) return;
+  if(e.target.closest('button, a, input, label, .tag, .repo-pill, .copy-cmd')) return;
   const el=e.target.closest('[data-id]'); if(!el) return;
   const m=moves.find(x=>x.id===el.dataset.id);
   if(m && el.dataset.action===undefined) openDialog('edit', m.id);
 });
-
-// keyboard open
 document.addEventListener('keydown', e=>{
   if(e.target.closest('input, textarea, select')) return;
   if(e.key==='Enter' && e.target.closest('[data-id]')){
@@ -428,14 +539,13 @@ document.addEventListener('keydown', e=>{
   }
 });
 
-// tag filtering + status filtering
+// tag/status filtering
 document.addEventListener('click', e=>{
   const filterBtn = e.target.closest('[data-tagfilter]');
   if(filterBtn){
     const t = filterBtn.dataset.tagfilter;
     activeTag = activeTag === t ? null : t;
-    render();
-    return;
+    render(); return;
   }
   const sBtn = e.target.closest('[data-statusfilter]');
   if(sBtn){
@@ -470,6 +580,9 @@ function openDialog(mode, id){
   }
   updatePreview(els.fInitial, els.previewInitial);
   updatePreview(els.fTarget, els.previewTarget);
+  const pi=parseRepo(els.fInitial.value); const pt=parseRepo(els.fTarget.value);
+  if(pi) validateRepoLive(pi.slug, els.validInitial); else setBadge(els.validInitial,'','');
+  if(pt) validateRepoLive(pt.slug, els.validTarget); else setBadge(els.validTarget,'','');
   if(!els.dialog.open) els.dialog.showModal();
   setTimeout(()=> els.fName.focus(), 50);
 }
@@ -511,6 +624,7 @@ els.form.addEventListener('submit', e=>{
   if(link){ try{ new URL(link); }catch{ showError('Extra link must be a valid URL (https://…)'); return; } }
   const status = (els.form.querySelector('input[name="fStatus"]:checked')||{}).value || 'planned';
   const data={ name, initialPlace:initialParsed.slug, targetPlace:targetParsed.slug, githubUrl:link, status, due, notes, tags, updatedAt: Date.now() };
+  pushHistory();
   if(editingId){
     const idx=moves.findIndex(m=>m.id===editingId);
     if(idx!==-1) moves[idx]={...moves[idx], ...data};
@@ -528,6 +642,68 @@ els.clearSearch.addEventListener('click', ()=>{ els.search.value=''; render(); e
 els.sortSelect.addEventListener('change', render);
 els.listViewBtn.addEventListener('click', ()=>{ viewMode='list'; localStorage.setItem('repoMover:view2','list'); render(); });
 els.boardViewBtn.addEventListener('click', ()=>{ viewMode='board'; localStorage.setItem('repoMover:view2','board'); render(); });
+
+// ---------- bulk fetch org ----------
+if(els.bulkFetchBtn) els.bulkFetchBtn.addEventListener('click', bulkFetch);
+async function bulkFetch(){
+  const source = prompt('Source GitHub account/org to fetch repos from (e.g. old-org):');
+  if(!source || !source.trim()) return;
+  const src = source.trim();
+  if(!isValidOwner(src)){ toast('Invalid account name'); return; }
+  const target = prompt(`Target account/org to move TO (e.g. new-org):`, src);
+  if(target===null) return;
+  const tgt = (target||'').trim();
+  if(tgt && !isValidOwner(tgt)){ toast('Invalid target account'); return; }
+  const btn = els.bulkFetchBtn; if(btn) btn.textContent='… fetching';
+  try{
+    // try orgs then users
+    let repos = [];
+    let page=1;
+    let hadData=true;
+    while(hadData && page<=3 && repos.length<250){
+      let res = await fetch(`https://api.github.com/orgs/${src}/repos?per_page=100&page=${page}&sort=updated`);
+      if(res.status===404){
+        res = await fetch(`https://api.github.com/users/${src}/repos?per_page=100&page=${page}&sort=updated`);
+      }
+      if(!res.ok){
+        if(res.status===403) throw new Error('Rate-limited (60/h anonymous). Try again later or add token.');
+        throw new Error(`Fetch failed ${res.status}`);
+      }
+      const batch = await res.json();
+      if(!Array.isArray(batch) || batch.length===0) hadData=false;
+      else { repos.push(...batch); page++; if(batch.length<100) hadData=false; }
+      if(repos.length>=30) hadData=false; // cap 30 for UX
+    }
+    if(!repos.length){ toast('No repos found for '+src); return; }
+    const existingSlugs = new Set(moves.map(m=> m.initialPlace));
+    const toCreate = repos.filter(r=> !existingSlugs.has(`${src}/${r.name}`)).slice(0,30);
+    if(!toCreate.length){ toast('All repos already in list'); return; }
+    const names = toCreate.map(r=> r.name).join(', ').slice(0,120);
+    if(!confirm(`Found ${repos.length} repos. Import ${toCreate.length} not yet in list?\n\n${names}${toCreate.length>5?' …':''}\n\nTarget will be: ${tgt||'— same name, choose target per item —'} \nCreates as "planned" status.`)) return;
+    pushHistory();
+    for(const r of toCreate){
+      const tgtSlug = tgt ? `${tgt}/${r.name}` : `${src}/${r.name}`;
+      moves.push({
+        id: uid(),
+        name: r.name,
+        initialPlace: `${src}/${r.name}`,
+        targetPlace: tgtSlug,
+        githubUrl: r.html_url,
+        status: 'planned',
+        due: '',
+        notes: r.description ? r.description.slice(0,200) : '',
+        tags: r.language ? [r.language.toLowerCase()] : [],
+        updatedAt: Date.now()
+      });
+    }
+    persistAndRender();
+    toast(`Imported ${toCreate.length} repos from ${src}`);
+  }catch(e){
+    toast('Fetch failed: '+e.message);
+  }finally{
+    if(btn) btn.textContent='⇄ Fetch org';
+  }
+}
 
 // ---------- import / export ----------
 els.exportBtn.addEventListener('click', ()=>{
@@ -559,12 +735,18 @@ els.importFile.addEventListener('change', async (e)=>{
     })).filter(x=> x.initialPlace && x.targetPlace);
     if(!imported.length) throw new Error('No valid moves found (need initial & target as account/repo)');
     if(confirm(`Import ${imported.length} moves? This will append to current list.`)){
+      pushHistory();
       moves.push(...imported);
       persistAndRender(); toast(`Imported ${imported.length}`);
     }
   }catch(err){ toast('Import failed: '+err.message); }
   e.target.value='';
 });
+
+// ---------- PWA ----------
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
 
 // ---------- init ----------
 applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
