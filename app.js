@@ -1,10 +1,20 @@
 const STORAGE_KEY = 'repoMover:moves-v3';
 const THEME_KEY = 'repoMover:theme';
 
+const storage = {
+  get(key) {
+    try { return localStorage.getItem(key); } catch { return null; }
+  },
+  set(key, val) {
+    try { localStorage.setItem(key, val); return true; } catch { return false; }
+  }
+};
+
 const els = {
   themeToggle: document.getElementById('themeToggle'),
   addBtn: document.getElementById('addBtn'),
   emptyAddBtn: document.getElementById('emptyAddBtn'),
+  emptySampleBtn: document.getElementById('emptySampleBtn'),
   undoBtn: document.getElementById('undoBtn'),
   bulkFetchBtn: document.getElementById('bulkFetchBtn'),
   search: document.getElementById('searchInput'),
@@ -51,12 +61,60 @@ const els = {
   batchInfo: document.getElementById('batchInfo'),
   batchCopyBtn: document.getElementById('batchCopyBtn'),
   insertChecklistBtn: document.getElementById('insertChecklistBtn'),
+  confirmDialog: document.getElementById('confirmDialog'),
+  confirmTitle: document.getElementById('confirmTitle'),
+  confirmMessage: document.getElementById('confirmMessage'),
+  confirmOkBtn: document.getElementById('confirmOkBtn'),
+  confirmCancelBtn: document.getElementById('confirmCancelBtn'),
+  closeConfirmDialog: document.getElementById('closeConfirmDialog'),
+  fetchDialog: document.getElementById('fetchDialog'),
+  fetchSource: document.getElementById('fetchSource'),
+  fetchTarget: document.getElementById('fetchTarget'),
+  fetchError: document.getElementById('fetchError'),
+  fetchResultsWrap: document.getElementById('fetchResultsWrap'),
+  fetchResultsList: document.getElementById('fetchResultsList'),
+  fetchCountBadge: document.getElementById('fetchCountBadge'),
+  fetchSelectAll: document.getElementById('fetchSelectAll'),
+  closeFetchDialog: document.getElementById('closeFetchDialog'),
+  cancelFetchBtn: document.getElementById('cancelFetchBtn'),
+  executeFetchBtn: document.getElementById('executeFetchBtn'),
+  importFetchedBtn: document.getElementById('importFetchedBtn'),
 };
 
+function confirmModal(title, message, confirmLabel = 'Confirm') {
+  return new Promise((resolve) => {
+    if (!els.confirmDialog) {
+      resolve(true);
+      return;
+    }
+    els.confirmTitle.textContent = title;
+    els.confirmMessage.textContent = message;
+    els.confirmOkBtn.textContent = confirmLabel;
+    
+    let resolved = false;
+    const cleanup = () => {
+      els.confirmOkBtn.removeEventListener('click', onConfirm);
+      els.confirmCancelBtn.removeEventListener('click', onCancel);
+      els.closeConfirmDialog?.removeEventListener('click', onCancel);
+      els.confirmDialog.removeEventListener('cancel', onCancel);
+      if (els.confirmDialog.open) els.confirmDialog.close();
+    };
+    const onConfirm = () => { if (!resolved) { resolved = true; cleanup(); resolve(true); } };
+    const onCancel = () => { if (!resolved) { resolved = true; cleanup(); resolve(false); } };
+
+    els.confirmOkBtn.addEventListener('click', onConfirm);
+    els.confirmCancelBtn.addEventListener('click', onCancel);
+    els.closeConfirmDialog?.addEventListener('click', onCancel);
+    els.confirmDialog.addEventListener('cancel', onCancel);
+    els.confirmDialog.showModal();
+  });
+}
+
 let moves = load();
-let viewMode = localStorage.getItem('repoMover:view2') || 'list';
+let viewMode = storage.get('repoMover:view2') || 'list';
 let editingId = null;
 let draggedId = null;
+let isDragging = false;
 let activeTag = null;
 let activeStatus = null;
 
@@ -95,7 +153,7 @@ function applyTheme(theme){
 function toggleTheme(){
   const cur = document.documentElement.getAttribute('data-theme') || 'dark';
   const next = cur === 'dark' ? 'light' : 'dark';
-  localStorage.setItem(THEME_KEY, next);
+  storage.set(THEME_KEY, next);
   applyTheme(next);
 }
 els.themeToggle.addEventListener('click', toggleTheme);
@@ -248,7 +306,7 @@ wireValidation();
 // ---------- storage ----------
 function load(){
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = storage.get(STORAGE_KEY);
     if(raw){ const p = JSON.parse(raw); if(Array.isArray(p)) return p.map(migrate); }
   }catch(e){ console.warn(e); }
   return [];
@@ -271,7 +329,10 @@ function todayISO(){
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
 function save(){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(moves)); return true; }
+  try{
+    const ok = storage.set(STORAGE_KEY, JSON.stringify(moves));
+    return ok;
+  }
   catch(e){ console.error(e); toast(e.name === 'QuotaExceededError' ? 'Storage full' : 'Save failed'); return false; }
 }
 function persistAndRender(){ save(); render(); }
@@ -359,22 +420,26 @@ function toggleChecklistItem(id, lineIdx){
 
 // ---------- deep-link ----------
 function syncUrl(){
-  const p = new URLSearchParams();
-  const q = els.search.value.trim(); if(q) p.set('q', q);
-  if(activeTag) p.set('tag', activeTag);
-  if(activeStatus) p.set('status', activeStatus);
-  if(els.sortSelect.value!=='updated') p.set('sort', els.sortSelect.value);
-  if(viewMode!=='list') p.set('view', viewMode);
-  const s = p.toString();
-  history.replaceState(null,'', s ? '?'+s : location.pathname);
+  try{
+    const p = new URLSearchParams();
+    const q = els.search.value.trim(); if(q) p.set('q', q);
+    if(activeTag) p.set('tag', activeTag);
+    if(activeStatus) p.set('status', activeStatus);
+    if(els.sortSelect.value!=='updated') p.set('sort', els.sortSelect.value);
+    if(viewMode!=='list') p.set('view', viewMode);
+    const s = p.toString();
+    history.replaceState(null,'', s ? '?'+s : location.pathname);
+  }catch(e){}
 }
 function loadFromUrl(){
-  const p = new URLSearchParams(location.search);
-  if(p.get('q')) els.search.value = p.get('q');
-  if(p.get('tag')) activeTag = p.get('tag');
-  if(p.get('status') && ['planned','in_progress','blocked','done'].includes(p.get('status'))) activeStatus=p.get('status');
-  if(p.get('sort') && ['updated','due','name','status'].includes(p.get('sort'))) els.sortSelect.value=p.get('sort');
-  if(p.get('view') && ['list','board'].includes(p.get('view'))){ viewMode=p.get('view'); localStorage.setItem('repoMover:view2', viewMode); }
+  try{
+    const p = new URLSearchParams(location.search);
+    if(p.get('q')) els.search.value = p.get('q');
+    if(p.get('tag')) activeTag = p.get('tag');
+    if(p.get('status') && ['planned','in_progress','blocked','done'].includes(p.get('status'))) activeStatus=p.get('status');
+    if(p.get('sort') && ['updated','due','name','status'].includes(p.get('sort'))) els.sortSelect.value=p.get('sort');
+    if(p.get('view') && ['list','board'].includes(p.get('view'))){ viewMode=p.get('view'); storage.set('repoMover:view2', viewMode); }
+  }catch(e){}
 }
 
 // ---------- filtering + sorting ----------
@@ -535,9 +600,22 @@ function render(){
   const isEmpty = moves.length===0;
   const filteredEmpty = !isEmpty && items.length===0;
   els.empty.classList.toggle('hidden', !isEmpty && !filteredEmpty);
-  if(isEmpty){ els.empty.querySelector('h3').textContent='Nothing here yet'; els.empty.querySelector('p').innerHTML='Add your first move — link <code>old-account/repo</code> → <code>new-account/repo</code>.'; els.emptyAddBtn.style.display=''; }
-  else if(filteredEmpty){ els.empty.querySelector('h3').textContent='No matches'; els.empty.querySelector('p').textContent='Try a different search or clear filters.'; els.emptyAddBtn.style.display='none'; }
-  else els.emptyAddBtn.style.display='none';
+  if(isEmpty){
+    els.empty.querySelector('h3').textContent='Nothing here yet';
+    els.empty.querySelector('p').innerHTML='Add your first move — link <code>old-account/repo</code> → <code>new-account/repo</code>.';
+    els.emptyAddBtn.style.display='';
+    if(els.emptySampleBtn) els.emptySampleBtn.style.display='';
+  }
+  else if(filteredEmpty){
+    els.empty.querySelector('h3').textContent='No matches';
+    els.empty.querySelector('p').textContent='Try a different search or clear filters.';
+    els.emptyAddBtn.style.display='none';
+    if(els.emptySampleBtn) els.emptySampleBtn.style.display='none';
+  }
+  else {
+    els.emptyAddBtn.style.display='none';
+    if(els.emptySampleBtn) els.emptySampleBtn.style.display='none';
+  }
 
   const isList = viewMode==='list';
   els.listView.classList.toggle('hidden', !isList);
@@ -551,16 +629,83 @@ function render(){
   updateUndoBtn();
 }
 
+// ---------- sample data ----------
+const SAMPLE_MOVES = [
+  {
+    name: 'auth-service',
+    initialPlace: 'acme-corp/auth-service',
+    targetPlace: 'acme-platform/auth-service',
+    githubUrl: 'https://github.com/acme-corp/auth-service',
+    status: 'in_progress',
+    due: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10),
+    tags: ['backend', 'security'],
+    notes: '- [x] Transfer repo (gh repo transfer)\n- [x] Update CI secrets & deploy keys\n- [ ] Update code references & docs\n- [ ] Announce in Slack / archive old'
+  },
+  {
+    name: 'frontend-dashboard',
+    initialPlace: 'acme-corp/dashboard-web',
+    targetPlace: 'acme-platform/dashboard-web',
+    githubUrl: 'https://github.com/acme-corp/dashboard-web',
+    status: 'planned',
+    due: new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 10),
+    tags: ['frontend', 'react'],
+    notes: '- [ ] Transfer repo (gh repo transfer)\n- [ ] Update Vercel/Netlify deploy hooks'
+  },
+  {
+    name: 'analytics-worker',
+    initialPlace: 'acme-corp/analytics-worker',
+    targetPlace: 'acme-platform/analytics-worker',
+    githubUrl: 'https://github.com/acme-corp/analytics-worker',
+    status: 'done',
+    due: '',
+    tags: ['worker', 'python'],
+    notes: '- [x] Successfully moved and DNS verified'
+  },
+  {
+    name: 'legacy-billing',
+    initialPlace: 'acme-corp/billing-api',
+    targetPlace: 'acme-platform/billing-api',
+    githubUrl: 'https://github.com/acme-corp/billing-api',
+    status: 'blocked',
+    due: new Date(Date.now() - 86400000 * 2).toISOString().slice(0, 10),
+    tags: ['backend', 'legacy'],
+    notes: 'Blocked on Stripe webhook migration approval from finance team.'
+  }
+];
+
+if(els.emptySampleBtn){
+  els.emptySampleBtn.addEventListener('click', () => {
+    pushHistory();
+    moves = SAMPLE_MOVES.map(m => ({
+      id: uid(),
+      name: m.name,
+      initialPlace: m.initialPlace,
+      targetPlace: m.targetPlace,
+      githubUrl: m.githubUrl,
+      status: m.status,
+      due: m.due,
+      tags: m.tags,
+      notes: m.notes,
+      updatedAt: Date.now()
+    }));
+    persistAndRender();
+    toast('Loaded sample moves ⚡');
+  });
+}
+
 // ---------- drag (board) ----------
 els.boardView.addEventListener('dragstart', e=>{
   const card = e.target.closest('.card'); if(!card) return;
   if(e.target.closest('button, a')) { e.preventDefault(); return; }
+  isDragging = true;
   draggedId = card.dataset.id; card.classList.add('dragging');
   e.dataTransfer.effectAllowed='move';
 });
 els.boardView.addEventListener('dragend', ()=>{
   document.querySelectorAll('.col-body.drag-over').forEach(el=>el.classList.remove('drag-over'));
+  document.querySelectorAll('.card.dragging').forEach(el=>el.classList.remove('dragging'));
   draggedId=null;
+  setTimeout(() => { isDragging = false; }, 120);
 });
 els.boardView.addEventListener('dragover', e=>{ const col=e.target.closest('.col-body'); if(!col) return; e.preventDefault(); col.classList.add('drag-over'); });
 els.boardView.addEventListener('dragleave', e=>{ const col=e.target.closest('.col-body'); if(!col) return; if(!col.contains(e.relatedTarget)) col.classList.remove('drag-over'); });
@@ -592,15 +737,18 @@ document.addEventListener('click', e=>{
   }
   else if(action==='delete'){
     const m=moves.find(x=>x.id===id); if(!m) return;
-    if(confirm(`Delete "${m.name}"?`)){
-      pushHistory();
-      moves = moves.filter(x=>x.id!==id);
-      persistAndRender(); toast('Deleted — ↩ Undo to restore');
-    }
+    confirmModal('Delete repo move?', `Are you sure you want to delete "${m.name}"? You can undo this anytime.`, 'Delete')
+      .then(ok => {
+        if (!ok) return;
+        pushHistory();
+        moves = moves.filter(x=>x.id!==id);
+        persistAndRender(); toast('Deleted — ↩ Undo to restore');
+      });
   }
 });
 
 document.addEventListener('click', e=>{
+  if(isDragging) return;
   if(e.target.closest('button, a, input, label, .tag, .repo-pill, .copy-cmd')) return;
   const el=e.target.closest('[data-id]'); if(!el) return;
   const m=moves.find(x=>x.id===el.dataset.id);
@@ -652,11 +800,14 @@ document.addEventListener('click', e=>{
   const shown = filtered();
   if(!shown.length) return;
   if(action==='delete'){
-    if(!confirm(`Delete ${shown.length} shown moves?`)) return;
-    pushHistory();
-    const ids = new Set(shown.map(m=>m.id));
-    moves = moves.filter(m=> !ids.has(m.id));
-    persistAndRender(); toast(`Deleted ${shown.length}`);
+    confirmModal('Delete shown moves?', `Are you sure you want to delete ${shown.length} shown moves?`, 'Delete All')
+      .then(ok => {
+        if (!ok) return;
+        pushHistory();
+        const ids = new Set(shown.map(m=>m.id));
+        moves = moves.filter(m=> !ids.has(m.id));
+        persistAndRender(); toast(`Deleted ${shown.length}`);
+      });
   } else if(['planned','in_progress','done','blocked'].includes(action)){
     pushHistory();
     for(const m of shown){ m.status=action; m.updatedAt=Date.now(); }
@@ -753,69 +904,174 @@ els.form.addEventListener('submit', e=>{
 els.search.addEventListener('input', ()=>{ render(); });
 els.clearSearch.addEventListener('click', ()=>{ els.search.value=''; render(); els.search.focus(); });
 els.sortSelect.addEventListener('change', render);
-els.listViewBtn.addEventListener('click', ()=>{ viewMode='list'; localStorage.setItem('repoMover:view2','list'); render(); });
-els.boardViewBtn.addEventListener('click', ()=>{ viewMode='board'; localStorage.setItem('repoMover:view2','board'); render(); });
+els.listViewBtn.addEventListener('click', ()=>{ viewMode='list'; storage.set('repoMover:view2','list'); render(); });
+els.boardViewBtn.addEventListener('click', ()=>{ viewMode='board'; storage.set('repoMover:view2','board'); render(); });
 
 // ---------- bulk fetch org ----------
-if(els.bulkFetchBtn) els.bulkFetchBtn.addEventListener('click', bulkFetch);
-async function bulkFetch(){
-  const source = prompt('Source GitHub account/org to fetch repos from (e.g. old-org):');
-  if(!source || !source.trim()) return;
-  const src = source.trim();
-  if(!isValidOwner(src)){ toast('Invalid account name'); return; }
-  const target = prompt(`Target account/org to move TO (e.g. new-org):`, src);
-  if(target===null) return;
-  const tgt = (target||'').trim();
-  if(tgt && !isValidOwner(tgt)){ toast('Invalid target account'); return; }
-  const btn = els.bulkFetchBtn; if(btn) btn.textContent='… fetching';
-  try{
-    // try orgs then users
-    let repos = [];
-    let page=1;
-    let hadData=true;
-    while(hadData && page<=3 && repos.length<250){
-      let res = await fetch(`https://api.github.com/orgs/${src}/repos?per_page=100&page=${page}&sort=updated`);
-      if(res.status===404){
-        res = await fetch(`https://api.github.com/users/${src}/repos?per_page=100&page=${page}&sort=updated`);
-      }
-      if(!res.ok){
-        if(res.status===403) throw new Error('Rate-limited (60/h anonymous). Try again later or add token.');
-        throw new Error(`Fetch failed ${res.status}`);
-      }
-      const batch = await res.json();
-      if(!Array.isArray(batch) || batch.length===0) hadData=false;
-      else { repos.push(...batch); page++; if(batch.length<100) hadData=false; }
-      if(repos.length>=30) hadData=false; // cap 30 for UX
+let fetchedReposList = [];
+
+if(els.bulkFetchBtn) {
+  els.bulkFetchBtn.addEventListener('click', () => {
+    if(!els.fetchDialog) return;
+    els.fetchSource.value = '';
+    els.fetchTarget.value = '';
+    delete els.fetchTarget.dataset.manual;
+    els.fetchError.classList.add('hidden');
+    els.fetchResultsWrap.classList.add('hidden');
+    els.importFetchedBtn.classList.add('hidden');
+    els.executeFetchBtn.textContent = 'Search GitHub';
+    fetchedReposList = [];
+    if(!els.fetchDialog.open) els.fetchDialog.showModal();
+    setTimeout(() => els.fetchSource.focus(), 50);
+  });
+}
+
+if(els.closeFetchDialog) els.closeFetchDialog.addEventListener('click', () => els.fetchDialog.close());
+if(els.cancelFetchBtn) els.cancelFetchBtn.addEventListener('click', () => els.fetchDialog.close());
+
+if(els.fetchSource) {
+  els.fetchSource.addEventListener('input', () => {
+    if(!els.fetchTarget.value || els.fetchTarget.dataset.manual !== 'true') {
+      els.fetchTarget.value = els.fetchSource.value;
     }
-    if(!repos.length){ toast('No repos found for '+src); return; }
-    const existingSlugs = new Set(moves.map(m=> m.initialPlace));
-    const toCreate = repos.filter(r=> !existingSlugs.has(`${src}/${r.name}`)).slice(0,30);
-    if(!toCreate.length){ toast('All repos already in list'); return; }
-    const names = toCreate.map(r=> r.name).join(', ').slice(0,120);
-    if(!confirm(`Found ${repos.length} repos. Import ${toCreate.length} not yet in list?\n\n${names}${toCreate.length>5?' …':''}\n\nTarget will be: ${tgt||'— same name, choose target per item —'} \nCreates as "planned" status.`)) return;
+  });
+}
+if(els.fetchTarget) {
+  els.fetchTarget.addEventListener('input', () => {
+    els.fetchTarget.dataset.manual = 'true';
+  });
+}
+
+function renderFetchedList() {
+  els.fetchResultsWrap.classList.remove('hidden');
+  const available = fetchedReposList.filter(f => !f.alreadyExists);
+  els.fetchCountBadge.textContent = `${fetchedReposList.length} repos found (${available.length} new)`;
+  els.fetchResultsList.innerHTML = fetchedReposList.map((item, idx) => {
+    const r = item.repo;
+    const checked = !item.alreadyExists ? 'checked' : 'disabled';
+    const tag = item.alreadyExists ? '<span class="valid-badge">already in list</span>' : (r.language ? `<span class="fetch-repo-lang">${escapeHtml(r.language)}</span>` : '');
+    return `
+      <label class="fetch-repo-item">
+        <input type="checkbox" data-fetch-idx="${idx}" ${checked} />
+        <div class="fetch-repo-info">
+          <span class="fetch-repo-name">${escapeHtml(r.name)}</span>
+          ${tag}
+        </div>
+      </label>
+    `;
+  }).join('');
+  updateImportBtnCount();
+}
+
+function updateImportBtnCount() {
+  const count = els.fetchResultsList.querySelectorAll('input[type="checkbox"]:checked:not(:disabled)').length;
+  els.importFetchedBtn.textContent = `Import Selected (${count})`;
+  els.importFetchedBtn.classList.toggle('hidden', count === 0);
+}
+
+if(els.fetchSelectAll) {
+  els.fetchSelectAll.addEventListener('click', () => {
+    const inputs = els.fetchResultsList.querySelectorAll('input[type="checkbox"]:not(:disabled)');
+    const anyUnchecked = Array.from(inputs).some(i => !i.checked);
+    inputs.forEach(i => i.checked = anyUnchecked);
+    updateImportBtnCount();
+  });
+}
+
+if(els.fetchResultsList) {
+  els.fetchResultsList.addEventListener('change', () => {
+    updateImportBtnCount();
+  });
+}
+
+if(els.executeFetchBtn) {
+  els.executeFetchBtn.addEventListener('click', async () => {
+    const src = (els.fetchSource.value || '').trim();
+    const tgt = (els.fetchTarget.value || '').trim();
+    els.fetchError.classList.add('hidden');
+    if(!src || !isValidOwner(src)){
+      els.fetchError.textContent = 'Please enter a valid source GitHub account or organization (e.g. facebook or vercel)';
+      els.fetchError.classList.remove('hidden');
+      return;
+    }
+    if(tgt && !isValidOwner(tgt)){
+      els.fetchError.textContent = 'Please enter a valid target GitHub account or organization';
+      els.fetchError.classList.remove('hidden');
+      return;
+    }
+    els.executeFetchBtn.textContent = '… searching';
+    els.executeFetchBtn.disabled = true;
+    try {
+      let repos = [];
+      let page = 1;
+      let hadData = true;
+      while(hadData && page <= 3 && repos.length < 250){
+        let res = await fetch(`https://api.github.com/orgs/${src}/repos?per_page=100&page=${page}&sort=updated`);
+        if(res.status === 404){
+          res = await fetch(`https://api.github.com/users/${src}/repos?per_page=100&page=${page}&sort=updated`);
+        }
+        if(!res.ok){
+          if(res.status === 403) throw new Error('Rate-limited (GitHub allows 60 anonymous requests/hr). Please try again later.');
+          throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+        }
+        const batch = await res.json();
+        if(!Array.isArray(batch) || batch.length === 0) hadData = false;
+        else { repos.push(...batch); page++; if(batch.length < 100) hadData = false; }
+        if(repos.length >= 60) hadData = false;
+      }
+      if(!repos.length){
+        els.fetchError.textContent = `No public repositories found for "${src}".`;
+        els.fetchError.classList.remove('hidden');
+        return;
+      }
+      const existingSlugs = new Set(moves.map(m => m.initialPlace));
+      fetchedReposList = repos.map(r => ({
+        repo: r,
+        alreadyExists: existingSlugs.has(`${src}/${r.name}`)
+      }));
+      renderFetchedList();
+    } catch(err) {
+      els.fetchError.textContent = err.message;
+      els.fetchError.classList.remove('hidden');
+    } finally {
+      els.executeFetchBtn.textContent = 'Search GitHub';
+      els.executeFetchBtn.disabled = false;
+    }
+  });
+}
+
+if(els.fetchForm) {
+  els.fetchForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const src = (els.fetchSource.value || '').trim();
+    const tgt = (els.fetchTarget.value || '').trim() || src;
+    const checked = els.fetchResultsList.querySelectorAll('input[type="checkbox"]:checked:not(:disabled)');
+    if(!checked.length) return;
     pushHistory();
-    for(const r of toCreate){
-      const tgtSlug = tgt ? `${tgt}/${r.name}` : `${src}/${r.name}`;
+    let count = 0;
+    checked.forEach(chk => {
+      const idx = Number(chk.dataset.fetchIdx);
+      const item = fetchedReposList[idx];
+      if(!item) return;
+      const r = item.repo;
       moves.push({
         id: uid(),
         name: r.name,
         initialPlace: `${src}/${r.name}`,
-        targetPlace: tgtSlug,
-        githubUrl: r.html_url,
+        targetPlace: `${tgt}/${r.name}`,
+        githubUrl: r.html_url || `https://github.com/${src}/${r.name}`,
         status: 'planned',
         due: '',
-        notes: r.description ? r.description.slice(0,200) : '',
+        notes: r.description ? r.description.slice(0, 200) : '',
         tags: r.language ? [r.language.toLowerCase()] : [],
         updatedAt: Date.now()
       });
-    }
+      count++;
+    });
+    if(els.fetchDialog.open) els.fetchDialog.close();
     persistAndRender();
-    toast(`Imported ${toCreate.length} repos from ${src}`);
-  }catch(e){
-    toast('Fetch failed: '+e.message);
-  }finally{
-    if(btn) btn.textContent='⇄ Fetch org';
-  }
+    toast(`Imported ${count} repos from ${src}`);
+  });
 }
 
 // ---------- import / export ----------
@@ -847,7 +1103,8 @@ els.importFile.addEventListener('change', async (e)=>{
       updatedAt: Date.now(),
     })).filter(x=> x.initialPlace && x.targetPlace);
     if(!imported.length) throw new Error('No valid moves found (need initial & target as account/repo)');
-    if(confirm(`Import ${imported.length} moves? This will append to current list.`)){
+    const ok = await confirmModal('Import moves?', `Import ${imported.length} moves? This will append to your current list.`, 'Import');
+    if(ok){
       pushHistory();
       moves.push(...imported);
       persistAndRender(); toast(`Imported ${imported.length}`);
@@ -858,11 +1115,17 @@ els.importFile.addEventListener('change', async (e)=>{
 
 // ---------- PWA ----------
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=> navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  if(typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV){
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      for(const reg of regs) reg.unregister();
+    }).catch(()=>{});
+  } else {
+    window.addEventListener('load', ()=> navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  }
 }
 
 // ---------- init ----------
-applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+applyTheme(storage.get(THEME_KEY) || 'dark');
 els.dateLine.textContent = new Date().toLocaleDateString(undefined, {weekday:'short', month:'long', day:'numeric'});
 loadFromUrl();
 render();

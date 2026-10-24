@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RepoMove — Move GitHub repos with confidence</title>
   <meta name="description" content="Track GitHub repo moves from initial account to target account. Checklists with links, due dates, tags." />
+  <meta property="og:title" content="RepoMove — Move GitHub repos with confidence" />
+  <meta property="og:description" content="Track GitHub repo moves from initial account to target account. Checklists with links, due dates, tags." />
   <meta name="theme-color" content="#7c6cff" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="manifest" href="manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -106,7 +109,10 @@
         </div>
         <h3>Nothing here yet</h3>
         <p>Add your first move — link <code>old-account/repo</code> → <code>new-account/repo</code>.</p>
-        <button id="emptyAddBtn" class="btn-primary">+ Add repo move</button>
+        <div class="empty-actions">
+          <button id="emptyAddBtn" class="btn-primary">+ Add repo move</button>
+          <button id="emptySampleBtn" class="btn-ghost sm">⚡ Load sample moves</button>
+        </div>
       </div>
     </main>
 
@@ -195,6 +201,57 @@
         <button type="submit" class="btn-primary" id="saveBtn">Save move</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- Bulk Fetch dialog -->
+  <dialog id="fetchDialog" aria-labelledby="fetchDialogTitle">
+    <div class="dialog-head">
+      <div>
+        <h2 id="fetchDialogTitle">Fetch repos from GitHub</h2>
+        <p class="dialog-sub">Fetch public repos from an organization or user</p>
+      </div>
+      <button type="button" class="icon-btn" id="closeFetchDialog" aria-label="Close">✕</button>
+    </div>
+    <form id="fetchForm" novalidate>
+      <div class="form-simple">
+        <label class="field">
+          <span class="field-label">Source account or org <em>*</em></span>
+          <input id="fetchSource" required placeholder="e.g. facebook or vercel" maxlength="80" autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span class="field-label">Target account or org <em>*</em></span>
+          <input id="fetchTarget" required placeholder="e.g. my-new-org" maxlength="80" autocomplete="off" spellcheck="false" />
+        </label>
+        <p id="fetchError" class="form-error hidden" role="alert"></p>
+        <div id="fetchResultsWrap" class="fetch-results-wrap hidden">
+          <div class="fetch-results-header">
+            <span id="fetchCountBadge" class="batch-info">0 repos found</span>
+            <button type="button" id="fetchSelectAll" class="link-btn">Select all</button>
+          </div>
+          <div id="fetchResultsList" class="fetch-results-list"></div>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-ghost" id="cancelFetchBtn">Cancel</button>
+        <button type="button" class="btn-ghost" id="executeFetchBtn">Search GitHub</button>
+        <button type="submit" class="btn-primary hidden" id="importFetchedBtn">Import Selected</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Confirmation dialog -->
+  <dialog id="confirmDialog" aria-labelledby="confirmTitle">
+    <div class="dialog-head">
+      <div>
+        <h2 id="confirmTitle">Are you sure?</h2>
+        <p class="dialog-sub" id="confirmMessage"></p>
+      </div>
+      <button type="button" class="icon-btn" id="closeConfirmDialog" aria-label="Close">✕</button>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="btn-ghost" id="confirmCancelBtn">Cancel</button>
+      <button type="button" class="btn-primary" id="confirmOkBtn">Confirm</button>
+    </div>
   </dialog>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>

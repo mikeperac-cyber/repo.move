@@ -1,0 +1,8 @@
+{
+  "name": "RepoMove",
+  "description": "Track GitHub repo moves from initial account to target account. Checklists with links, due dates, tags.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

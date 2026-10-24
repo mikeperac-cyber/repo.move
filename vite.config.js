@@ -3,8 +3,15 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: './',
-  server: { port: 5173 },
-  preview: { port: 4173 },
+  server: {
+    host: '0.0.0.0',
+    port: 3000,
+    strictPort: true
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 3000
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -15,18 +22,17 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['**/*'],
+      includeAssets: ['icon.svg', 'manifest.json'],
       manifest: {
-        name: 'RepoMove — Repo Moving Checklist',
+        name: 'RepoMove — Move GitHub repos with confidence',
         short_name: 'RepoMove',
-        description: 'Track GitHub repo moves initial → target with links, due dates and board.',
+        description: 'Track GitHub repo moves from initial account to target account. Checklists with links, due dates, tags.',
         theme_color: '#7c6cff',
         background_color: '#0a0c17',
         display: 'standalone',
         start_url: './',
         icons: [
-          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' }
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }
         ]
       },
       workbox: {

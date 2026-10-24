@@ -5,9 +5,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
-    "preview": "vite preview --port 4173"
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
+    "lint": "node --check app.js"
   },
   "devDependencies": {
     "vite": "^5.4.0",
